@@ -49,6 +49,15 @@
         <button id="btn-redo" disabled title="重做 Ctrl+Y">↪</button>
       </div>
     </div>
+
+    <div id="history-panel">
+      <div id="history-header">
+        <span id="history-label">历史记录</span>
+        <button id="btn-clear-history" title="清空所有记录">清空</button>
+      </div>
+      <canvas id="history-chart"></canvas>
+      <div id="history-list"></div>
+    </div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>

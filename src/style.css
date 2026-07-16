@@ -198,3 +198,70 @@ canvas {
   opacity: 0.35;
   cursor: default;
 }
+
+/* ─── History panel ─── */
+
+#history-panel {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+}
+
+#history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+#history-label {
+  font-size: 0.8rem;
+  color: #606080;
+}
+
+#btn-clear-history {
+  font-size: 0.7rem;
+  padding: 1px 8px;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  background: #1a1a3a;
+  color: #606080;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#btn-clear-history:hover {
+  background: #3a1a2a;
+  color: #d06060;
+  border-color: #6a3a3a;
+}
+
+#history-chart {
+  width: 100%;
+  height: 60px;
+  border-radius: 3px;
+  background: #0a0a18;
+  margin-bottom: 0.4rem;
+}
+
+#history-list {
+  font-size: 0.72rem;
+  color: #606080;
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.8rem;
+}
+
+#history-list::-webkit-scrollbar { width: 4px; }
+#history-list::-webkit-scrollbar-track { background: transparent; }
+#history-list::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 2px; }
+
+.history-entry {
+  white-space: nowrap;
+}
