@@ -147,6 +147,9 @@ export function generateRandomCurve(
  * `curvature` controls how high (positive) or low (negative) the arch
  * goes relative to the canvas height.  curvature = 0  ⇒  straight line.
  *
+ * The arch direction and slant are randomised each call (up / down / tilted)
+ * so users get varied practice.
+ *
  * @param w         Canvas CSS width
  * @param h         Canvas CSS height
  * @param curvature Relative arch height; default 0.15 (15 % of h)
@@ -163,20 +166,32 @@ export function generateArchCurve(
   const midY = h / 2;
   const archPx = curvature * h;
 
-  /* Endpoints with a little vertical jitter so not every arch is dead-centre */
+  /* Endpoint vertical offset — shared jitter + tilt so one end sits higher */
   const yOff = (Math.random() - 0.5) * h * 0.08;
-  const p0: Point = { x: margin + Math.random() * w * 0.05, y: midY + yOff };
-  const p3: Point = { x: w - margin - Math.random() * w * 0.05, y: midY + yOff };
+  const tiltOff = (Math.random() - 0.5) * h * 0.20;
 
-  /* Control points – horizontal spread at 1/3 and 2/3, vertical = arch */
-  const p1: Point = {
-    x: p0.x + (p3.x - p0.x) * 0.33 + (Math.random() - 0.5) * w * 0.04,
-    y: midY - archPx + yOff,
+  const p0: Point = {
+    x: margin + Math.random() * w * 0.05,
+    y: midY + yOff + tiltOff,
   };
-  const p2: Point = {
-    x: p0.x + (p3.x - p0.x) * 0.67 + (Math.random() - 0.5) * w * 0.04,
-    y: midY - archPx + yOff,
+  const p3: Point = {
+    x: w - margin - Math.random() * w * 0.05,
+    y: midY + yOff - tiltOff,
   };
+
+  const xSpan = p3.x - p0.x;
+
+  /* Control points with varied horizontal ratios for asymmetric arches */
+  const p1xRatio = 0.25 + Math.random() * 0.18;   // 0.25 – 0.43
+  const p2xRatio = 0.57 + Math.random() * 0.18;   // 0.57 – 0.75
+
+  const p1x = p0.x + xSpan * p1xRatio + (Math.random() - 0.5) * w * 0.04;
+  const p2x = p0.x + xSpan * p2xRatio + (Math.random() - 0.5) * w * 0.04;
+
+  /* Baseline y at each x (linear interp between endpoints), then add arch */
+  const baseY = (x: number) => p0.y + (p3.y - p0.y) * ((x - p0.x) / xSpan);
+  const p1: Point = { x: p1x, y: baseY(p1x) - archPx };
+  const p2: Point = { x: p2x, y: baseY(p2x) - archPx };
 
   /* Sample */
   const points: Point[] = [];
@@ -184,4 +199,19 @@ export function generateArchCurve(
     points.push(evalCubic(p0, p1, p2, p3, Math.min(t, 1)));
   }
   return points;
+}
+
+/**
+ * Convenience: call `generateArchCurve` with a random curvature sign
+ * and magnitude so each invocation feels fresh.
+ */
+export function generateRandomArchCurve(
+  w: number,
+  h: number,
+  margin = 40,
+  step = 0.015,
+): Point[] {
+  const sign = Math.random() > 0.5 ? 1 : -1;
+  const mag = 0.05 + Math.random() * 0.20; // 0.05 – 0.25
+  return generateArchCurve(w, h, sign * mag, margin, step);
 }

@@ -7,7 +7,7 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve, generateArchCurve } from './generator';
+import { generateRandomCurve, generateRandomArchCurve } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
@@ -108,6 +108,11 @@ class MirrorTraceApp {
     this.redoBtnEl.addEventListener('click', () => this.redo());
     this.updateUndoRedoButtons();
 
+    document.getElementById('btn-redraw')!
+      .addEventListener('click', () => this.redraw());
+    document.getElementById('btn-newcurve')!
+      .addEventListener('click', () => this.newCurve());
+
     this.historyChartEl = document.getElementById('history-chart') as HTMLCanvasElement;
     this.historyListEl = document.getElementById('history-list')!;
     document.getElementById('btn-clear-history')!
@@ -141,6 +146,10 @@ class MirrorTraceApp {
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.redo(); }
+      if (!e.ctrlKey && !e.metaKey) {
+        if (e.key === 'r' || e.key === 'R') { e.preventDefault(); this.redraw(); }
+        if (e.key === 'n' || e.key === 'N') { e.preventDefault(); this.newCurve(); }
+      }
     });
 
     this.initResizeObserver();
@@ -186,8 +195,19 @@ class MirrorTraceApp {
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
     this.refPath = this.singleStrokeMode
-      ? generateArchCurve(this.cssW, this.cssH, 0.15, 40)
+      ? generateRandomArchCurve(this.cssW, this.cssH, 40)
       : generateRandomCurve(this.cssW, this.cssH, 40);
+    this.resetCoverage();
+    this.clearUserCanvas();
+    this.clearScoreDisplay();
+    this.drawScene();
+  }
+
+  /**
+   * Redraw the SAME reference curve — clear user strokes but keep refPath.
+   * Useful when the user wants to retry the current curve.
+   */
+  redraw(): void {
     this.resetCoverage();
     this.clearUserCanvas();
     this.clearScoreDisplay();
@@ -216,7 +236,7 @@ class MirrorTraceApp {
     this.clearScoreDisplay();
     /* Generate a new curve for the selected mode */
     this.refPath = this.singleStrokeMode
-      ? generateArchCurve(this.cssW, this.cssH, 0.15, 40)
+      ? generateRandomArchCurve(this.cssW, this.cssH, 40)
       : generateRandomCurve(this.cssW, this.cssH, 40);
     this.resetCoverage();
     this.drawScene();
