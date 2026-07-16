@@ -412,3 +412,88 @@ canvas.show-grid {
   font-size: 0.7rem;
   margin-left: 0.15rem;
 }
+
+/* ─── Export popup menu ─── */
+
+#export-menu {
+  position: fixed;
+  z-index: 100;
+  background: #1a1a3a;
+  border: 1px solid #3a3a5a;
+  border-radius: 4px;
+  display: none;
+  flex-direction: column;
+  gap: 0;
+}
+
+#export-menu button {
+  background: transparent;
+  border: none;
+  color: #a0a0c0;
+  padding: 4px 16px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+#export-menu button:hover {
+  background: #2a2a4a;
+  color: #e0e0e0;
+}
+
+/* ─── Keyboard shortcut help overlay ─── */
+
+#help-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#help-box {
+  background: #1a1a3a;
+  border: 1px solid #3a3a5a;
+  border-radius: 8px;
+  padding: 1.5rem 2rem;
+  min-width: 220px;
+}
+
+#help-box h3 {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #a0a0c0;
+  margin-bottom: 0.8rem;
+  text-align: center;
+}
+
+#help-box table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#help-box td {
+  padding: 3px 8px;
+  font-size: 0.8rem;
+  color: #8080a0;
+}
+
+#help-box td.key {
+  color: #c0c0e0;
+  font-family: monospace;
+  text-align: right;
+  width: 40%;
+}
+
+/* ─── Preset dropdown ─── */
+
+#preset-select {
+  font-size: 0.75rem;
+  background: #1a1a3a;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #a0a0c0;
+  padding: 1px 4px;
+}

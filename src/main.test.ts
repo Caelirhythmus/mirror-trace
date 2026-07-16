@@ -81,7 +81,23 @@ function createDOM(): void {
           <button id="btn-newcurve">✚</button>
           <button id="btn-undo" disabled>↩</button>
           <button id="btn-redo" disabled>↪</button>
+          <button id="btn-export">↓</button>
+          <button id="btn-help">?</button>
         </div>
+      </div>
+
+      <div id="export-menu" style="display:none">
+        <button data-export="svg">SVG</button>
+        <button data-export="png">PNG</button>
+        <button data-export="report">报告</button>
+      </div>
+
+      <div id="help-overlay" style="display:none">
+        <div id="help-box"><h3>快捷键</h3></div>
+      </div>
+
+      <div class="config-row" id="preset-row">
+        <label>预设 <select id="preset-select"><option value="">—</option></select></label>
       </div>
 
       <div id="history-panel">

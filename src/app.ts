@@ -22,6 +22,8 @@ import {
   HeatmapState,
 } from './renderer';
 import { renderHistoryChart, renderHistoryList } from './history-manager';
+import { buildSVG, downloadPNG, buildReport, triggerDownload, textToDataURL } from './exporter';
+import { findPreset } from './presets';
 
 /* Virtual canvas coordinate space — curves are generated in this fixed
    size and scaled to fit the actual canvas via context transform. */
@@ -164,6 +166,34 @@ export class MirrorTraceApp {
     this.redoBtnEl.addEventListener('click', () => this.redo());
     this.updateUndoRedoButtons();
 
+    /* Export button + popup menu */
+    const exportBtn = document.getElementById('btn-export')!;
+    const exportMenu = document.getElementById('export-menu')!;
+    exportBtn.addEventListener('click', () => {
+      const rect = exportBtn.getBoundingClientRect();
+      exportMenu.style.display = 'flex';
+      exportMenu.style.left = `${rect.left}px`;
+      exportMenu.style.top = `${rect.bottom + 2}px`;
+    });
+    document.addEventListener('click', (e) => {
+      if (!exportMenu.contains(e.target as Node) && e.target !== exportBtn) {
+        exportMenu.style.display = 'none';
+      }
+    });
+    exportMenu.addEventListener('click', (e) => {
+      const target = (e.target as HTMLElement).closest('[data-export]') as HTMLElement | null;
+      if (!target) return;
+      exportMenu.style.display = 'none';
+      const format = target.getAttribute('data-export');
+      this.doExport(format!);
+    });
+
+    /* Help button */
+    const helpOverlay = document.getElementById('help-overlay')!;
+    document.getElementById('btn-help')!
+      .addEventListener('click', () => { helpOverlay.style.display = 'flex'; });
+    helpOverlay.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
+
     document.getElementById('btn-redraw')!
       .addEventListener('click', () => this.redraw());
     document.getElementById('btn-newcurve')!
@@ -272,6 +302,39 @@ export class MirrorTraceApp {
       if (!this.singleStrokeMode) this.newCurve();
     });
 
+    /* Preset selector */
+    document.getElementById('preset-select')!.addEventListener('change', (e) => {
+      const id = (e.target as HTMLSelectElement).value;
+      if (!id) return;
+      const preset = findPreset(id);
+      if (!preset) return;
+      if (preset.hellMode) {
+        this.hellStraightCount = preset.counts[0];
+        this.hellArchCount = preset.counts[1];
+        this.hellComplexCount = preset.counts[2];
+        this.hellMode = true;
+        this.multiLineMode = true;
+        /* Sync hell-mode inputs */
+        (document.getElementById('input-hell-straight') as HTMLInputElement).value = String(preset.counts[0]);
+        (document.getElementById('input-hell-arch') as HTMLInputElement).value = String(preset.counts[1]);
+        (document.getElementById('input-hell-complex') as HTMLInputElement).value = String(preset.counts[2]);
+        (document.getElementById('toggle-hell') as HTMLInputElement).checked = true;
+      } else {
+        this.straightLineCount = preset.counts[0];
+        this.totalLineCount = preset.counts[0] + preset.counts[1];
+        this.hellMode = false;
+        this.multiLineMode = true;
+        /* Sync multi-mode inputs */
+        (document.getElementById('input-straight') as HTMLInputElement).value = String(preset.counts[0]);
+        (document.getElementById('input-total') as HTMLInputElement).value = String(this.totalLineCount);
+        (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
+      }
+      this.updateConfigVisibility();
+      this.newCurve();
+      /* Reset the select to the placeholder */
+      (e.target as HTMLSelectElement).value = '';
+    });
+
     /* Keyboard shortcuts */
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
@@ -279,6 +342,15 @@ export class MirrorTraceApp {
       if (!e.ctrlKey && !e.metaKey) {
         if (e.key === 'r' || e.key === 'R') { e.preventDefault(); this.redraw(); }
         if (e.key === 'n' || e.key === 'N') { e.preventDefault(); this.newCurve(); }
+        if (e.key === '?') {
+          e.preventDefault();
+          const overlay = document.getElementById('help-overlay')!;
+          overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+        }
+        if (e.key === 's' || e.key === 'S') {
+          e.preventDefault();
+          this.doExport('svg');
+        }
       }
     });
 
@@ -530,6 +602,57 @@ export class MirrorTraceApp {
     this.evalBadgesEl.innerHTML = '';
     this.resizeCanvases();
     this.updateCoverageUI();
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Export                                           */
+  /* ──────────────────────────────────────────────── */
+
+  /** Handle SVG / PNG / report export */
+  private doExport(format: string): void {
+    const history = loadHistory(); // from storage
+
+    /* Collect user strokes from stroke history */
+    const userStrokes = this.strokeHistory.map(s => s.raw);
+
+    switch (format) {
+      case 'svg': {
+        const svg = buildSVG(this.refPath, userStrokes, this.multiLineMode ? this.multiLines : undefined);
+        triggerDownload(textToDataURL(svg), 'mirror-trace.svg');
+        break;
+      }
+      case 'png': {
+        downloadPNG(this.refCanvas, this.userCanvas, 'mirror-trace.png');
+        break;
+      }
+      case 'report': {
+        /* Get latest score */
+        let finalScore = 0, spatialScore = 0, timeScore = 0, elapsedMs = 0;
+        let idealMs = 0, hDist = 0, rms = 0;
+        let mode = '?';
+        if (this.historyPointer >= 0) {
+          const s = this.strokeHistory[this.historyPointer].score;
+          if (s) {
+            finalScore = s.finalScore;
+            spatialScore = s.spatialScore;
+            timeScore = s.timeScore;
+            elapsedMs = s.elapsedMs;
+            idealMs = s.idealMs;
+            hDist = s.hausdorff95Dist;
+            rms = s.rmsDist;
+          }
+        }
+        if (this.hellMode) mode = '地狱';
+        else if (this.multiLineMode) mode = '多条';
+        else if (this.singleStrokeMode) mode = '单笔';
+        else mode = '概括';
+
+        const report = buildReport(finalScore, spatialScore, timeScore,
+          elapsedMs, idealMs, hDist, rms, mode, history);
+        triggerDownload(textToDataURL(report), 'mirror-trace-report.txt');
+        break;
+      }
+    }
   }
 
   /** Called when the user toggles between overview and single-stroke mode */

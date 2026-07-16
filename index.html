@@ -71,6 +71,19 @@
       <div class="config-row" id="complex-params" style="display:none">
         <label>复杂分段 <input type="number" id="input-segments" value="3" min="2" max="12" /></label>
       </div>
+      <div class="config-row" id="preset-row">
+        <label>预设
+          <select id="preset-select">
+            <option value="">—</option>
+            <option value="hell-5-3-2">地狱 5-3-2</option>
+            <option value="hell-4-4-2">地狱 4-4-2</option>
+            <option value="hell-3-2-0">地狱 3-2-0</option>
+            <option value="multi-3+2">多线 3+2</option>
+            <option value="multi-1+1">多线 1+1</option>
+            <option value="quick-2">快速 2 条</option>
+          </select>
+        </label>
+      </div>
       <div class="ctrl-group">
         <label class="toggle-label" title="根据笔压调整线条粗细，倾斜角调整透明度">
           <input type="checkbox" id="toggle-pressure" checked />
@@ -102,7 +115,30 @@
           <button id="btn-newcurve" title="再画一张 N">✚</button>
           <button id="btn-undo" disabled title="撤销 Ctrl+Z">↩</button>
           <button id="btn-redo" disabled title="重做 Ctrl+Y">↪</button>
+          <button id="btn-export" title="导出">↓</button>
+          <button id="btn-help" title="快捷键 ?">?</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Export popup menu -->
+    <div id="export-menu" style="display:none">
+      <button data-export="svg">SVG</button>
+      <button data-export="png">PNG</button>
+      <button data-export="report">报告</button>
+    </div>
+
+    <!-- Keyboard shortcut help overlay -->
+    <div id="help-overlay" style="display:none">
+      <div id="help-box">
+        <h3>快捷键</h3>
+        <table>
+          <tr><td class="key">N</td><td>新曲线</td></tr>
+          <tr><td class="key">R</td><td>重画</td></tr>
+          <tr><td class="key">Ctrl+Z</td><td>撤销</td></tr>
+          <tr><td class="key">Ctrl+Y</td><td>重做</td></tr>
+          <tr><td class="key">?</td><td>关闭此面板</td></tr>
+        </table>
       </div>
     </div>
 

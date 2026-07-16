@@ -1,0 +1,38 @@
+/**
+ * Configuration presets for MirrorTraceApp
+ *
+ * Built-in presets that set mode + line counts in a single selection.
+ */
+
+/* ------------------------------------------------------------------ */
+/*  Types                                                              */
+/* ------------------------------------------------------------------ */
+
+export interface Preset {
+  id: string;
+  name: string;
+  hellMode: boolean;
+  /** For hell mode: [straight, arch, complex]; for multi mode: [straight, rest] */
+  counts: number[];
+}
+
+/* ------------------------------------------------------------------ */
+/*  Built-in presets                                                   */
+/* ------------------------------------------------------------------ */
+
+export const BUILT_IN_PRESETS: Preset[] = [
+  { id: 'hell-5-3-2', name: '地狱 5-3-2', hellMode: true, counts: [5, 3, 2] },
+  { id: 'hell-4-4-2', name: '地狱 4-4-2', hellMode: true, counts: [4, 4, 2] },
+  { id: 'hell-3-2-0', name: '地狱 3-2-0', hellMode: true, counts: [3, 2, 0] },
+  { id: 'multi-3+2',  name: '多线 3+2',   hellMode: false, counts: [3, 2] },
+  { id: 'multi-1+1',  name: '多线 1+1',   hellMode: false, counts: [1, 1] },
+  { id: 'quick-2',    name: '快速 2 条',  hellMode: false, counts: [0, 2] },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Lookup                                                             */
+/* ------------------------------------------------------------------ */
+
+export function findPreset(id: string): Preset | undefined {
+  return BUILT_IN_PRESETS.find(p => p.id === id);
+}
