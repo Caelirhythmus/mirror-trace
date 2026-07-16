@@ -1,0 +1,59 @@
+# Python 虚拟环境
+.venv/
+
+# JSON 数据
+2-json/
+
+# LaTeX 构建脚本和导言区（由编译系统自动管理）
+4-scripts/buildpdfltx.ps1
+4-scripts/preamble-math.tex
+
+# LaTeX 编译临时文件
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.lof
+*.lot
+*.nlo
+*.nls
+*.ind
+*.idx
+*.ilg
+*.dvi
+*.xdv
+
+# 编译生成的 PDF
+/main.pdf
+/output.pdf
+/main.tex
+1-docs/1-paper/main.pdf
+1-docs/1-paper/main.tex
+
+# 其他临时文件
+pdf/
+logs/
+__pycache__/
+*.pyc
+
+# 提示与传递文件
+args.txt
+output.pdf
+
+test_img.pdf
+
+# zip
+zip/
+
+git-log/
+
+*.png
+*.jpg
+
+# unused
+unused/
