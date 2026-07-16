@@ -26,6 +26,8 @@ interface StrokeState {
   raw: Point[];
   processed: Point[];
   score: ScoreResult | null;
+  /** Index of the matched multi-line (-1 if not in multi-line mode) */
+  matchedLineIdx: number;
 }
 
 class MirrorTraceApp {
@@ -233,6 +235,8 @@ class MirrorTraceApp {
   /** Generate a fresh reference curve and reset everything */
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
+    this.strokeHistory = [];
+    this.historyPointer = -1;
     if (this.multiLineMode) {
       const result = generateMultiLines(this.cssW, this.cssH, this.totalLineCount, this.straightLineCount, 40);
       this.multiLines = result.lines;
@@ -270,6 +274,8 @@ class MirrorTraceApp {
    * Useful when the user wants to retry the current curve.
    */
   redraw(): void {
+    this.strokeHistory = [];
+    this.historyPointer = -1;
     if (this.multiLineMode) {
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
       this.coveragePct = 0;
@@ -744,6 +750,7 @@ class MirrorTraceApp {
       raw: [...this.userRawPath],
       processed: [...this.userProcessedPath],
       score,
+      matchedLineIdx,
     });
     this.historyPointer = this.strokeHistory.length - 1;
     this.updateUndoRedoButtons();
@@ -774,12 +781,23 @@ class MirrorTraceApp {
 
     this.historyPointer--;
     if (this.historyPointer >= 0) {
-      this.restoreStrokeState(this.strokeHistory[this.historyPointer]);
+      this.restoreStrokesUpTo(this.historyPointer);
     } else {
       /* No strokes left — show empty canvas */
       this.clearUserCanvas();
       this.clearScoreDisplay();
-      this.drawHeatmapGuide();
+      /* Reset coverage tracking */
+      if (this.multiLineMode) {
+        this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+      } else if (!this.singleStrokeMode) {
+        this.covered = new Array(this.refPath.length).fill(false);
+      }
+      this.coveragePct = 0;
+      this.updateCoverageUI();
+      this.drawRefCanvas();
+      if (this.singleStrokeMode && !this.multiLineMode) {
+        this.drawHeatmapGuide();
+      }
     }
     this.updateUndoRedoButtons();
   }
@@ -790,39 +808,86 @@ class MirrorTraceApp {
     if (this.historyPointer >= this.strokeHistory.length - 1) return;
 
     this.historyPointer++;
-    this.restoreStrokeState(this.strokeHistory[this.historyPointer]);
+    this.restoreStrokesUpTo(this.historyPointer);
     this.updateUndoRedoButtons();
   }
 
-  /** Redraw user canvas to match a historical stroke state */
-  private restoreStrokeState(state: StrokeState): void {
+  /** Replay a single raw stroke polyline onto the user canvas */
+  private replayRawStroke(state: StrokeState): void {
+    if (state.raw.length < 2) return;
+    const ctx = this.userCtx;
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(state.raw[0].x, state.raw[0].y);
+    for (let i = 1; i < state.raw.length; i++) {
+      ctx.lineTo(state.raw[i].x, state.raw[i].y);
+    }
+    ctx.stroke();
+  }
+
+  /**
+   * Restore canvas + state to reflect the cumulative state after
+   * strokeHistory[index].
+   *
+   * - Single-stroke mode: each stroke is a full curve → show only that one.
+   * - Overview mode: strokes accumulate → replay all 0…index with coverage.
+   * - Multi-line mode: each stroke covers one sub-line → replay all 0…index.
+   */
+  private restoreStrokesUpTo(index: number): void {
+    const state = this.strokeHistory[index];
+    if (!state) return;
+
     this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
-    this.drawHeatmapGuide();
 
-    this.userRawPath = [...state.raw];
-    this.userProcessedPath = [...state.processed];
+    /* Single-stroke (non-multi) mode — independent full-curve attempts */
+    if (this.singleStrokeMode && !this.multiLineMode) {
+      this.drawHeatmapGuide();
+      this.replayRawStroke(state);
+      this.userProcessedPath = [...state.processed];
+      if (state.processed.length >= 2) this.drawUserProcessed();
+      state.score ? this.showScore(state.score) : this.clearScoreDisplay();
+      return;
+    }
 
-    /* Replay the raw stroke as a polyline */
-    if (state.raw.length >= 2) {
-      const ctx = this.userCtx;
-      ctx.strokeStyle = '#ff6b6b';
-      ctx.lineWidth = 2.5;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(state.raw[0].x, state.raw[0].y);
-      for (let i = 1; i < state.raw.length; i++) {
-        ctx.lineTo(state.raw[i].x, state.raw[i].y);
+    /* Multi-line mode — each stroke covers one sub-line */
+    if (this.multiLineMode) {
+      for (let i = 0; i <= index; i++) {
+        const s = this.strokeHistory[i];
+        this.replayRawStroke(s);
+        if (s.matchedLineIdx >= 0 && s.matchedLineIdx < this.multiLineCovered.length) {
+          this.multiLineCovered[s.matchedLineIdx] = true;
+        }
       }
-      ctx.stroke();
+      this.coveragePct = Math.round(
+        (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
+      );
+      this.updateCoverageUI();
+      this.drawRefCanvas();
+      state.score ? this.showScore(state.score) : this.clearScoreDisplay();
+      return;
     }
 
-    /* Draw processed overlay */
-    if (state.processed.length >= 2) {
-      this.drawUserProcessed();
+    /* Overview mode — strokes accumulate with coverage tracking */
+    this.covered = new Array(this.refPath.length).fill(false);
+    this.drawHeatmapGuide();
+    for (let i = 0; i <= index; i++) {
+      const s = this.strokeHistory[i];
+      this.replayRawStroke(s);
+      if (s.raw.length >= 2 && this.refPath.length >= 2) {
+        const match = findSegment(this.refPath, s.raw);
+        for (let j = match.startIdx; j <= match.endIdx; j++) {
+          this.covered[j] = true;
+        }
+      }
     }
-
-    /* Restore score display */
+    this.coveragePct = Math.round(
+      (this.covered.filter(v => v).length / this.refPath.length) * 100,
+    );
+    this.updateCoverageUI();
+    this.drawRefCanvas();
     state.score ? this.showScore(state.score) : this.clearScoreDisplay();
   }
 
