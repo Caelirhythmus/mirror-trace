@@ -7,11 +7,16 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve, generateRotatedArch, generateMultiLines, translateToFit } from './generator';
+import { generateRandomCurve, generateRotatedArch, generateMultiLines } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
 import { saveEntry, loadHistory, clearHistory, makeId, HistoryEntry } from './storage';
+
+/* Virtual canvas coordinate space — curves are generated in this fixed
+   size and scaled to fit the actual canvas via context transform. */
+const VIRTUAL_W = 800;
+const VIRTUAL_H = 600;
 
 const ML_COLORS = [
   '#ff6b6b', '#4a9eff', '#50c878', '#ffd700',
@@ -41,6 +46,9 @@ class MirrorTraceApp {
   private dpr = 1;
   private cssW = 0;
   private cssH = 0;
+  /** Scale factors from virtual → actual CSS pixel space */
+  private get scaleX(): number { return this.cssW / VIRTUAL_W; }
+  private get scaleY(): number { return this.cssH / VIRTUAL_H; }
 
   /* paths */
   private refPath: Point[] = [];          // reference curve (from generator)
@@ -232,10 +240,6 @@ class MirrorTraceApp {
     /* Refresh DPR — browser zoom changes devicePixelRatio */
     this.dpr = window.devicePixelRatio || 1;
 
-    /* Remember old dimensions to detect canvas size changes */
-    const oldW = this.cssW;
-    const oldH = this.cssH;
-
     /* Ref canvas sets the baseline CSS size */
     const rectR = this.refCanvas.getBoundingClientRect();
     this.cssW = Math.round(rectR.width);
@@ -243,19 +247,22 @@ class MirrorTraceApp {
 
     this.refCanvas.width = this.cssW * this.dpr;
     this.refCanvas.height = this.cssH * this.dpr;
-    this.refCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    /* Transform maps virtual (800×600) → CSS pixels → device pixels */
+    this.refCtx.setTransform(
+      this.dpr * this.scaleX, 0,
+      0, this.dpr * this.scaleY,
+      0, 0,
+    );
 
     /* User canvas — use its own rect (should be nearly identical) */
     const rectU = this.userCanvas.getBoundingClientRect();
     this.userCanvas.width = Math.round(rectU.width) * this.dpr;
     this.userCanvas.height = Math.round(rectU.height) * this.dpr;
-    this.userCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-
-    /* If the canvas dimensions changed, the current refPath may be
-       positioned for the old size.  Re-fit it to the new canvas. */
-    if (oldW > 0 && oldH > 0 && (oldW !== this.cssW || oldH !== this.cssH)) {
-      this.refitRefPath();
-    }
+    this.userCtx.setTransform(
+      this.dpr * this.scaleX, 0,
+      0, this.dpr * this.scaleY,
+      0, 0,
+    );
 
     /* Redraw ref canvas */
     this.drawScene();
@@ -264,56 +271,8 @@ class MirrorTraceApp {
     this.redrawUserCanvasContent();
   }
 
-  /**
-   * Check whether the current reference curve fits the canvas; if not,
-   * reposition it with translateToFit and discard stale user strokes.
-   */
-  private refitRefPath(): void {
-    const margin = 40;
-
-    /* Helper: check bounding box of a point array */
-    const outOfBounds = (pts: readonly Point[]): boolean => {
-      if (pts.length < 2) return false;
-      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-      for (const p of pts) {
-        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
-        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
-      }
-      return x0 < margin || x1 > this.cssW - margin ||
-             y0 < margin || y1 > this.cssH - margin;
-    };
-
-    const needsFit = this.multiLineMode
-      ? this.multiLines.some(line => outOfBounds(line))
-      : outOfBounds(this.refPath);
-
-    if (!needsFit) return;
-
-    /* Reposition the reference curve(s) */
-    if (this.multiLineMode) {
-      this.multiLines = this.multiLines.map(line =>
-        translateToFit(line, this.cssW, this.cssH, margin),
-      );
-      if (this.multiLines.length > 0) this.refPath = this.multiLines[0];
-    } else {
-      this.refPath = translateToFit(this.refPath, this.cssW, this.cssH, margin);
-    }
-
-    /* User strokes reference the old coordinates — reset */
-    this.clearUserCanvas();
-    this.strokeHistory = [];
-    this.historyPointer = -1;
-    this.covered = new Array(this.refPath.length).fill(false);
-    this.coveragePct = 0;
-    this.multiLineCovered = new Array(this.multiLines.length).fill(false);
-    this.fullEvalReady = false;
-    this.allRawPaths = [];
-    this.segmentRecords = [];
-    this.globalStartTime = 0;
-    this.fullEvalStatusEl.style.display = 'none';
-    this.updateCoverageUI();
-    this.clearScoreDisplay();
-  }
+  /* refitRefPath is no longer needed — the virtual canvas coordinate space
+     ensures curves always fit regardless of CSS canvas dimensions. */
 
   /**
    * Redraw the user canvas from stored stroke data after a buffer resize
@@ -404,7 +363,7 @@ class MirrorTraceApp {
     this.strokeHistory = [];
     this.historyPointer = -1;
     if (this.multiLineMode) {
-      const result = generateMultiLines(this.cssW, this.cssH, this.totalLineCount, this.straightLineCount, 40);
+      const result = generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.totalLineCount, this.straightLineCount, 40);
       this.multiLines = result.lines;
       this.refPath = result.lines[0];
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
@@ -416,8 +375,8 @@ class MirrorTraceApp {
       this.multiLineCovered = [];
       this.multiLineColors = [];
       this.refPath = this.singleStrokeMode
-        ? generateRotatedArch(this.cssW, this.cssH, 40)
-        : generateRandomCurve(this.cssW, this.cssH, 40);
+        ? generateRotatedArch(VIRTUAL_W, VIRTUAL_H, 40)
+        : generateRandomCurve(VIRTUAL_W, VIRTUAL_H, 40);
       this.covered = new Array(this.refPath.length).fill(false);
       this.coveragePct = 0;
       this.fullEvalReady = false;
@@ -542,7 +501,7 @@ class MirrorTraceApp {
 
   private drawRefCanvas(): void {
     const ctx = this.refCtx;
-    ctx.clearRect(0, 0, this.cssW, this.cssH);
+    ctx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
 
     /* Multi-line mode: draw each line with its color */
     if (this.multiLineMode && this.multiLines.length > 0) {
@@ -603,7 +562,7 @@ class MirrorTraceApp {
   }
 
   private clearUserCanvas(): void {
-    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
     this.userRawPath = [];
     this.userProcessedPath = [];
     this.prevPoint = { x: 0, y: 0 };
@@ -804,7 +763,7 @@ class MirrorTraceApp {
 
     if (this.singleStrokeMode || this.multiLineMode) {
       /* Clear canvas for independent strokes */
-      this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+      this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
     }
     this.userProcessedPath = [];
     this.clearScoreDisplay();
@@ -1048,7 +1007,7 @@ class MirrorTraceApp {
     const state = this.strokeHistory[index];
     if (!state) return;
 
-    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
 
     /* Single-stroke (non-multi) mode — independent full-curve attempts */
     if (this.singleStrokeMode && !this.multiLineMode) {
@@ -1334,8 +1293,8 @@ class MirrorTraceApp {
   private clientToCanvas(e: PointerEvent): Point {
     const rect = this.userCanvas.getBoundingClientRect();
     return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: (e.clientX - rect.left) / this.scaleX,
+      y: (e.clientY - rect.top) / this.scaleY,
     };
   }
 }

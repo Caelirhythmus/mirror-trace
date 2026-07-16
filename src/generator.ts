@@ -175,8 +175,9 @@ export function translateToFit(
   w: number,
   h: number,
   margin = 40,
+  _depth = 0,
 ): Point[] {
-  if (pts.length === 0) return [...pts];
+  if (pts.length === 0 || _depth > 20) return [...pts];
 
   /* Bounding box */
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -188,15 +189,16 @@ export function translateToFit(
   const cw = x1 - x0, ch = y1 - y0;
   const availW = w - 2 * margin;
   const availH = h - 2 * margin;
+  const EPS = 1e-6;
 
   /* Scale down uniformly if the curve is too large to fit */
-  if (cw > availW || ch > availH) {
-    const s = Math.min(availW / cw, availH / ch, 1);
+  if (cw > availW + EPS || ch > availH + EPS) {
+    const s = Math.min(availW / cw, availH / ch);
     const scaled = pts.map(p => ({
       x: x0 + (p.x - x0) * s,
       y: y0 + (p.y - y0) * s,
     }));
-    return translateToFit(scaled, w, h, margin);
+    return translateToFit(scaled, w, h, margin, _depth + 1);
   }
 
   /* Random offset within the available space */
