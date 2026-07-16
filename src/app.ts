@@ -225,6 +225,8 @@ export class MirrorTraceApp {
     const heatmapToggle = document.getElementById('toggle-heatmap') as HTMLInputElement;
     heatmapToggle.addEventListener('change', () => {
       this.heatmapEnabled = heatmapToggle.checked;
+      this.clearUserCanvas();
+      this.redrawUserCanvasContent();
     });
 
     /* Grid toggle + density */
@@ -513,10 +515,8 @@ export class MirrorTraceApp {
   private redrawUserCanvasContent(): void {
     const ctx = this.userCtx;
 
-    /* Heatmap guide background */
-    if (this.singleStrokeMode || this.multiLineMode) {
-      this.drawHeatmapGuide();
-    }
+    /* Heatmap guide background — all modes */
+    this.drawHeatmapGuide();
 
     /* ── Completed strokes from history ── */
 
@@ -621,6 +621,7 @@ export class MirrorTraceApp {
     this.resizeCanvases();
     this.updateCoverageUI();
     this.clearUserCanvas();
+    this.redrawUserCanvasContent();
     this.clearScoreDisplay();
     this.drawScene();
   }
@@ -649,6 +650,7 @@ export class MirrorTraceApp {
       this.resetCoverage();
     }
     this.clearUserCanvas();
+    this.redrawUserCanvasContent();
     this.clearScoreDisplay();
     this.drawScene();
   }
@@ -1014,10 +1016,8 @@ export class MirrorTraceApp {
       this.drawRefCanvas();
     }
 
-    /* Draw heatmap guide as background layer */
-    if (this.singleStrokeMode || this.multiLineMode) {
-      this.drawHeatmapGuide();
-    }
+    /* Draw heatmap guide as background layer — all modes */
+    this.drawHeatmapGuide();
 
     const p = clientToCanvas(e, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
     this.userRawPath.push(p);
@@ -1200,9 +1200,7 @@ export class MirrorTraceApp {
       this.coveragePct = 0;
       this.updateCoverageUI();
       this.drawRefCanvas();
-      if (this.singleStrokeMode || this.multiLineMode) {
-        this.drawHeatmapGuide();
-      }
+      this.drawHeatmapGuide();
     }
     this.updateUndoRedoButtons();
   }
