@@ -96,6 +96,8 @@ class MirrorTraceApp {
   /* latest segment match (for visual highlight on ref canvas) */
   private latestMatchStart = -1;
   private latestMatchEnd = -1;
+  /** Pen-position hotspot on ref canvas (-1 = none) */
+  private liveHotspotIdx = -1;
 
   /* multi-line mode state */
   private multiLines: Point[][] = [];
@@ -304,6 +306,7 @@ class MirrorTraceApp {
     this.segmentRecords = [];
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
+    this.liveHotspotIdx = -1;
     this.multiLines = [];
     this.multiLineCovered = [];
     this.multiLineColors = [];
@@ -421,6 +424,18 @@ class MirrorTraceApp {
       this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
         'rgba(255, 240, 120, 0.60)', 3);
     }
+
+    /* Pen-position hotspot crosshair */
+    if (this.liveHotspotIdx >= 0 && this.heatmapEnabled && this.refPath.length > this.liveHotspotIdx) {
+      const hp = this.refPath[this.liveHotspotIdx];
+      const s = 6;
+      ctx.strokeStyle = 'rgba(255, 255, 100, 0.75)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(hp.x - s, hp.y); ctx.lineTo(hp.x + s, hp.y);
+      ctx.moveTo(hp.x, hp.y - s); ctx.lineTo(hp.x, hp.y + s);
+      ctx.stroke();
+    }
   }
 
   private clearUserCanvas(): void {
@@ -428,6 +443,7 @@ class MirrorTraceApp {
     this.userRawPath = [];
     this.userProcessedPath = [];
     this.prevPoint = { x: 0, y: 0 };
+    this.liveHotspotIdx = -1;
   }
 
   /**
@@ -532,45 +548,36 @@ class MirrorTraceApp {
     }
   }
 
-  /** Draw a glowing hotspot on the reference curve near the pen position */
-  private drawHeatmapHotspot(penPos: Point): void {
-    if (!this.heatmapEnabled || this.refPath.length < 2) return;
+  /** Update live pen-position hotspot on the reference canvas */
+  private updateLiveHotspot(penPos: Point): void {
+    if (!this.heatmapEnabled) {
+      if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
+      return;
+    }
 
-    /* Find index of nearest ref point */
-    let bestIdx = 0;
+    let bestIdx = -1;
     let bestDist = Infinity;
-    for (let i = 0; i < this.refPath.length; i++) {
-      const d = Math.hypot(this.refPath[i].x - penPos.x, this.refPath[i].y - penPos.y);
-      if (d < bestDist) { bestDist = d; bestIdx = i; }
+
+    if (this.multiLineMode) {
+      /* Multi-line: no visual hotspot on ref canvas (all lines shown) */
+      if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
+      return;
+    } else {
+      /* Single-stroke / overview mode */
+      if (this.refPath.length < 2) {
+        if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
+        return;
+      }
+      for (let i = 0; i < this.refPath.length; i++) {
+        const d = Math.hypot(this.refPath[i].x - penPos.x, this.refPath[i].y - penPos.y);
+        if (d < bestDist) { bestDist = d; bestIdx = i; }
+      }
     }
 
-    const ctx = this.userCtx;
-    const R = 25; // window radius (number of points on each side)
-    const start = Math.max(0, bestIdx - R);
-    const end = Math.min(this.refPath.length - 1, bestIdx + R);
-    if (end - start < 2) return;
-
-    /* Glow layer 1 (outer, wider) */
-    ctx.strokeStyle = 'rgba(74, 158, 255, 0.25)';
-    ctx.lineWidth = 6;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
-    for (let i = start + 1; i <= end; i++) {
-      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    if (bestIdx !== this.liveHotspotIdx) {
+      this.liveHotspotIdx = bestIdx;
+      this.drawRefCanvas();
     }
-    ctx.stroke();
-
-    /* Glow layer 2 (inner, brighter) */
-    ctx.strokeStyle = 'rgba(100, 190, 255, 0.45)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
-    for (let i = start + 1; i <= end; i++) {
-      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
-    }
-    ctx.stroke();
   }
 
   /* ──────────────────────────────────────────────── */
@@ -582,7 +589,8 @@ class MirrorTraceApp {
     el.addEventListener('pointerdown', this.onPointerDown.bind(this));
     el.addEventListener('pointermove', this.onPointerMove.bind(this));
     el.addEventListener('pointerup', this.onPointerUp.bind(this));
-    el.addEventListener('pointerleave', this.onPointerUp.bind(this));
+    /* Don't bind pointerleave — lifting the pen outside the canvas
+       would truncate the stroke. Let the next pointerdown discard it. */
   }
 
   private onPointerDown(e: PointerEvent): void {
@@ -604,10 +612,11 @@ class MirrorTraceApp {
     this.userProcessedPath = [];
     this.clearScoreDisplay();
 
-    /* Clear latest-match highlight on ref canvas */
-    if (this.latestMatchStart >= 0) {
+    /* Clear latest-match highlight and hotspot on ref canvas */
+    if (this.latestMatchStart >= 0 || this.liveHotspotIdx >= 0) {
       this.latestMatchStart = -1;
       this.latestMatchEnd = -1;
+      this.liveHotspotIdx = -1;
       this.drawRefCanvas();
     }
 
@@ -630,16 +639,17 @@ class MirrorTraceApp {
         const p = this.clientToCanvas(ev);
         this.userRawPath.push(p);
         this.drawSegment(p, ev.pressure, ev.tiltX, ev.tiltY);
-        this.drawHeatmapHotspot(p);
         this.prevPoint = p;
       }
     } else {
       const p = this.clientToCanvas(e);
       this.userRawPath.push(p);
       this.drawSegment(p, e.pressure, e.tiltX, e.tiltY);
-      this.drawHeatmapHotspot(p);
       this.prevPoint = p;
     }
+
+    /* Update live pen-position hotspot on the reference canvas */
+    this.updateLiveHotspot(this.userRawPath[this.userRawPath.length - 1]);
   }
 
   private onPointerUp(_e: PointerEvent): void {
@@ -755,8 +765,10 @@ class MirrorTraceApp {
     this.historyPointer = this.strokeHistory.length - 1;
     this.updateUndoRedoButtons();
 
-    /* Persist to localStorage and refresh history panel */
-    this.saveToPersistentHistory(score);
+    /* Persist to localStorage only for full-attempt strokes */
+    if (this.singleStrokeMode) {
+      this.saveToPersistentHistory(score);
+    }
 
     /* Log stats for debugging */
     console.log({
