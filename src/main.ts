@@ -233,7 +233,7 @@ class MirrorTraceApp {
   /** Generate a fresh reference curve and reset everything */
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
-    if (this.singleStrokeMode && this.multiLineMode) {
+    if (this.multiLineMode) {
       const result = generateMultiLines(this.cssW, this.cssH, this.totalLineCount, this.straightLineCount, 40);
       this.multiLines = result.lines;
       this.refPath = result.lines[0];
@@ -315,8 +315,7 @@ class MirrorTraceApp {
 
   /** Show/hide multi-line config based on current mode */
   private updateConfigVisibility(): void {
-    const visible = this.singleStrokeMode;
-    this.multiConfigEl.style.display = visible ? 'flex' : 'none';
+    this.multiConfigEl.style.display = 'flex';
     this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
   }
 
@@ -373,7 +372,7 @@ class MirrorTraceApp {
     ctx.clearRect(0, 0, this.cssW, this.cssH);
 
     /* Multi-line mode: draw each line with its color */
-    if (this.singleStrokeMode && this.multiLineMode && this.multiLines.length > 0) {
+    if (this.multiLineMode && this.multiLines.length > 0) {
       for (let li = 0; li < this.multiLines.length; li++) {
         const line = this.multiLines[li];
         if (line.length < 2) continue;
@@ -518,7 +517,7 @@ class MirrorTraceApp {
 
   /** Update coverage UI based on mode and coverage percentage */
   private updateCoverageUI(): void {
-    if (this.singleStrokeMode && !this.multiLineMode) {
+    if (!this.multiLineMode && this.singleStrokeMode) {
       this.coverageEl.textContent = '\u2014';
       this.progressFillEl.style.width = '0%';
     } else {
@@ -592,8 +591,8 @@ class MirrorTraceApp {
       this.globalStartTime = performance.now();
     }
 
-    if (this.singleStrokeMode) {
-      /* Single-stroke mode: clear canvas each time */
+    if (this.singleStrokeMode || this.multiLineMode) {
+      /* Clear canvas for independent strokes */
       this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
     }
     this.userProcessedPath = [];
@@ -664,7 +663,7 @@ class MirrorTraceApp {
     /* Determine which reference sub-path to score against */
     let refSubPath: Point[];
     let matchedLineIdx = -1;
-    if (this.singleStrokeMode && this.multiLineMode) {
+    if (this.multiLineMode) {
       /* Multi-line mode: match stroke to nearest un-covered line */
       matchedLineIdx = this.matchMultiLine();
       if (matchedLineIdx < 0) return; // no matching line found
@@ -720,7 +719,7 @@ class MirrorTraceApp {
     }
 
     /* Multi-line: mark line as covered and update UI */
-    if (this.singleStrokeMode && this.multiLineMode && matchedLineIdx >= 0) {
+    if (this.multiLineMode && matchedLineIdx >= 0) {
       this.multiLineCovered[matchedLineIdx] = true;
       this.coveragePct = Math.round(
         (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
@@ -734,8 +733,8 @@ class MirrorTraceApp {
       }
     }
 
-    /* Auto-trigger full evaluation when coverage ≥ 97 % */
-    if (!this.singleStrokeMode && this.coveragePct >= 97 && !this.fullEvalReady) {
+    /* Auto-trigger full evaluation when coverage ≥ 97 % (overview non-multi) */
+    if (!this.singleStrokeMode && !this.multiLineMode && this.coveragePct >= 97 && !this.fullEvalReady) {
       this.triggerFullEvaluation(score);
     }
     this.showScore(score);
