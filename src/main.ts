@@ -209,9 +209,28 @@ class MirrorTraceApp {
   private initResizeObserver(): void {
     const ro = new ResizeObserver(() => this.resizeCanvases());
     ro.observe(this.refCanvas);
+
+    /* Detect DPR (browser zoom) changes that ResizeObserver may miss */
+    this.initDprListener();
+  }
+
+  /** Listen for devicePixelRatio changes (browser zoom, external monitor DPI scaling) */
+  private initDprListener(): void {
+    let mq: MediaQueryList;
+    const listen = () => {
+      mq?.removeEventListener('change', listen);
+      mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      mq.addEventListener('change', () => {
+        this.resizeCanvases();
+      });
+    };
+    listen();
   }
 
   private resizeCanvases(): void {
+    /* Refresh DPR — browser zoom changes devicePixelRatio */
+    this.dpr = window.devicePixelRatio || 1;
+
     /* Ref canvas sets the baseline CSS size */
     const rectR = this.refCanvas.getBoundingClientRect();
     this.cssW = Math.round(rectR.width);
