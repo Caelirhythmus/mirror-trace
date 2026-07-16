@@ -163,3 +163,38 @@ canvas {
 .toggle-text {
   font-size: 0.78rem;
 }
+
+/* ─── History buttons ─── */
+
+.history-buttons {
+  display: flex;
+  gap: 4px;
+  margin-left: 0.5rem;
+}
+
+.history-buttons button {
+  width: 26px;
+  height: 22px;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  background: #1a1a3a;
+  color: #8080a0;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.history-buttons button:not(:disabled):hover {
+  background: #2a2a5a;
+  color: #c0c0e0;
+  border-color: #5a5a8a;
+}
+
+.history-buttons button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

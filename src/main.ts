@@ -11,6 +11,16 @@ import { generateRandomCurve } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 
+/* ------------------------------------------------------------------ */
+/*  Stroke history model                                               */
+/* ------------------------------------------------------------------ */
+
+interface StrokeState {
+  raw: Point[];
+  processed: Point[];
+  score: ScoreResult | null;
+}
+
 class MirrorTraceApp {
   /* canvases & contexts */
   private refCanvas!: HTMLCanvasElement;
@@ -35,7 +45,11 @@ class MirrorTraceApp {
   private pressureEnabled = true;
   private heatmapEnabled = true;
 
-  /* DOM elements for score display */
+  /* stroke history for undo / redo */
+  private strokeHistory: StrokeState[] = [];
+  private historyPointer = -1;
+
+  /* DOM */
   private scoreFinalEl!: HTMLElement;
   private scoreSpatialEl!: HTMLElement;
   private scoreTimeEl!: HTMLElement;
@@ -43,6 +57,8 @@ class MirrorTraceApp {
   private debugRmsEl!: HTMLElement;
   private debugElapsedEl!: HTMLElement;
   private debugIdealEl!: HTMLElement;
+  private undoBtnEl!: HTMLButtonElement;
+  private redoBtnEl!: HTMLButtonElement;
 
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
@@ -62,6 +78,11 @@ class MirrorTraceApp {
     this.debugRmsEl = document.getElementById('debug-rms')!;
     this.debugElapsedEl = document.getElementById('debug-elapsed')!;
     this.debugIdealEl = document.getElementById('debug-ideal')!;
+    this.undoBtnEl = document.getElementById('btn-undo') as HTMLButtonElement;
+    this.redoBtnEl = document.getElementById('btn-redo') as HTMLButtonElement;
+    this.undoBtnEl.addEventListener('click', () => this.undo());
+    this.redoBtnEl.addEventListener('click', () => this.redo());
+    this.updateUndoRedoButtons();
 
     /* Bind toggles */
     const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
@@ -72,6 +93,12 @@ class MirrorTraceApp {
     const heatmapToggle = document.getElementById('toggle-heatmap') as HTMLInputElement;
     heatmapToggle.addEventListener('change', () => {
       this.heatmapEnabled = heatmapToggle.checked;
+    });
+
+    /* Keyboard shortcuts */
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
+      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.redo(); }
     });
 
     this.initResizeObserver();
@@ -303,6 +330,8 @@ class MirrorTraceApp {
   private onPointerDown(e: PointerEvent): void {
     this.isDrawing = true;
     this.pointerDownTime = performance.now();
+    /* Any new stroke discards the redo future */
+    this.strokeHistory.length = this.historyPointer + 1;
     this.userRawPath = [];
 
     /* Clear user canvas and previous score */
@@ -357,6 +386,9 @@ class MirrorTraceApp {
     if (this.userRawPath.length < 3) return;
     if (this.refPath.length < 2) return;
 
+    /* Truncate any undone states: new stroke discards redo future */
+    this.strokeHistory.length = this.historyPointer + 1;
+
     const rdpEpsilon = 0.5; // CSS pixels
     const simplified = rdpSimplify(this.userRawPath, rdpEpsilon);
     const resampled = resampleToCount(simplified, this.refPath.length);
@@ -370,6 +402,15 @@ class MirrorTraceApp {
     const score = computeScores(this.refPath, resampled, elapsedMs);
     this.showScore(score);
 
+    /* Save to history */
+    this.strokeHistory.push({
+      raw: [...this.userRawPath],
+      processed: [...this.userProcessedPath],
+      score,
+    });
+    this.historyPointer = this.strokeHistory.length - 1;
+    this.updateUndoRedoButtons();
+
     /* Log stats for debugging */
     console.log({
       rawPts: this.userRawPath.length,
@@ -379,6 +420,75 @@ class MirrorTraceApp {
       rawLength: arcLength(this.userRawPath).toFixed(1),
       score: score.finalScore,
     });
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Undo / Redo                                     */
+  /* ──────────────────────────────────────────────── */
+
+  /** Undo: restore the previous stroke from history */
+  undo(): void {
+    if (this.isDrawing) return;
+    if (this.historyPointer < 0) return;
+
+    this.historyPointer--;
+    if (this.historyPointer >= 0) {
+      this.restoreStrokeState(this.strokeHistory[this.historyPointer]);
+    } else {
+      /* No strokes left — show empty canvas */
+      this.clearUserCanvas();
+      this.clearScoreDisplay();
+      this.drawHeatmapGuide();
+    }
+    this.updateUndoRedoButtons();
+  }
+
+  /** Redo: restore the next stroke from history */
+  redo(): void {
+    if (this.isDrawing) return;
+    if (this.historyPointer >= this.strokeHistory.length - 1) return;
+
+    this.historyPointer++;
+    this.restoreStrokeState(this.strokeHistory[this.historyPointer]);
+    this.updateUndoRedoButtons();
+  }
+
+  /** Redraw user canvas to match a historical stroke state */
+  private restoreStrokeState(state: StrokeState): void {
+    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    this.drawHeatmapGuide();
+
+    this.userRawPath = [...state.raw];
+    this.userProcessedPath = [...state.processed];
+
+    /* Replay the raw stroke as a polyline */
+    if (state.raw.length >= 2) {
+      const ctx = this.userCtx;
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(state.raw[0].x, state.raw[0].y);
+      for (let i = 1; i < state.raw.length; i++) {
+        ctx.lineTo(state.raw[i].x, state.raw[i].y);
+      }
+      ctx.stroke();
+    }
+
+    /* Draw processed overlay */
+    if (state.processed.length >= 2) {
+      this.drawUserProcessed();
+    }
+
+    /* Restore score display */
+    state.score ? this.showScore(state.score) : this.clearScoreDisplay();
+  }
+
+  /** Enable / disable undo / redo buttons based on history state */
+  private updateUndoRedoButtons(): void {
+    this.undoBtnEl.disabled = this.historyPointer < 0;
+    this.redoBtnEl.disabled = this.historyPointer >= this.strokeHistory.length - 1;
   }
 
   /* ──────────────────────────────────────────────── */
