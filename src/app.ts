@@ -74,6 +74,8 @@ export class MirrorTraceApp {
   prevPoint: Point = { x: 0, y: 0 };
   pressureEnabled = true;
   heatmapEnabled = true;
+  gridEnabled = false;
+  private gridSize = 40;
   /** false = overview mode (multi-stroke, segment matching) */
   singleStrokeMode = false;
   /** true = multi-line mode (multiple lines stacked, only in single-stroke) */
@@ -192,6 +194,20 @@ export class MirrorTraceApp {
     const heatmapToggle = document.getElementById('toggle-heatmap') as HTMLInputElement;
     heatmapToggle.addEventListener('change', () => {
       this.heatmapEnabled = heatmapToggle.checked;
+    });
+
+    /* Grid toggle + density */
+    const gridToggle = document.getElementById('toggle-grid') as HTMLInputElement;
+    const gridSizeInput = document.getElementById('input-grid-size') as HTMLInputElement;
+    const updateGrid = () => {
+      this.gridEnabled = gridToggle.checked;
+      gridSizeInput.style.display = this.gridEnabled ? 'inline-block' : 'none';
+      this.updateGridOverlay();
+    };
+    gridToggle.addEventListener('change', updateGrid);
+    gridSizeInput.addEventListener('change', () => {
+      this.gridSize = Math.max(20, Math.min(100, parseInt(gridSizeInput.value) || 40));
+      this.updateGridOverlay();
     });
 
     /* Mode switch: overview ↔ single-stroke */
@@ -697,6 +713,17 @@ export class MirrorTraceApp {
   /** Draw the full reference curve very faintly as a static guide on the user canvas */
   private drawHeatmapGuide(): void {
     renderDrawHeatmapGuide(this.userCtx, this.getHeatmapState());
+  }
+
+  /** Toggle the optional grid overlay on both canvases */
+  private updateGridOverlay(): void {
+    this.refCanvas.classList.toggle('show-grid', this.gridEnabled);
+    this.userCanvas.classList.toggle('show-grid', this.gridEnabled);
+    if (this.gridEnabled) {
+      const px = `${this.gridSize}px`;
+      this.refCanvas.style.setProperty('--grid-size', px);
+      this.userCanvas.style.setProperty('--grid-size', px);
+    }
   }
 
   /* ──────────────────────────────────────────────── */

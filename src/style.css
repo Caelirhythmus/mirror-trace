@@ -67,12 +67,16 @@ canvas {
   width: 100%;
   border: 1px solid #333;
   border-radius: 4px;
-  background:
-    /* Grid: 20px squares @ 3% white */
-    repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(255,255,255,0.03) 19px, rgba(255,255,255,0.03) 20px),
-    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(255,255,255,0.03) 19px, rgba(255,255,255,0.03) 20px),
-    #0f0f1a;
+  background: #0f0f1a;
   touch-action: none;  /* prevent scroll/zoom on touch devices */
+}
+
+/* Optional grid overlay, activated by .show-grid class */
+canvas.show-grid {
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent calc(var(--grid-size, 40px) - 1px), rgba(255,255,255,0.04) calc(var(--grid-size, 40px) - 1px), rgba(255,255,255,0.04) var(--grid-size, 40px)),
+    repeating-linear-gradient(90deg, transparent, transparent calc(var(--grid-size, 40px) - 1px), rgba(255,255,255,0.04) calc(var(--grid-size, 40px) - 1px), rgba(255,255,255,0.04) var(--grid-size, 40px)),
+    #0f0f1a;
 }
 
 /* ─── Score panel ─── */
@@ -148,7 +152,7 @@ canvas {
   height: 100%;
   width: 0%;
   border-radius: 3px;
-  background: linear-gradient(90deg, #4a9eff, #50c878, #ffd700);
+  background: linear-gradient(90deg, #555, #50c878);
   transition: width 0.3s ease;
 }
 

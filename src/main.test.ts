@@ -71,6 +71,9 @@ function createDOM(): void {
         <div class="ctrl-group">
           <input type="checkbox" id="toggle-pressure" checked />
           <input type="checkbox" id="toggle-heatmap" checked />
+          <input type="checkbox" id="toggle-grid" />
+          <input type="number" id="input-grid-size" value="40" min="20" max="100" step="10"
+            style="display:none;width:48px;" />
           <input type="checkbox" id="toggle-mode" />
           <span id="mode-label">概括</span>
           <span id="mode-switch" style="display:inline-flex"></span>
