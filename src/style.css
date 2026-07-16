@@ -361,47 +361,36 @@ canvas {
   white-space: nowrap;
 }
 
-/* ─── Full evaluation status ─── */
+/* ─── Full-evaluation badges (inline in score panel) ─── */
 
-#full-eval-status {
-  margin-top: 0.3rem;
-  padding: 0.3rem 0.8rem;
-  border-radius: 4px;
-  background: #0a1a0a;
-  border: 1px solid #2a4a2a;
-  display: none;
+.eval-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  padding: 0 0.6rem;
+  border-left: 1px solid #2a4a2a;
 }
 
-.eval-title {
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #80d080;
-  margin-bottom: 0.4rem;
-  text-align: center;
-}
-
-.eval-row {
-  display: flex;
+.eval-badge {
+  display: inline-flex;
   align-items: baseline;
-  gap: 0.6rem;
-  padding: 0.2rem 0;
-  border-top: 1px solid #1a2a1a;
-  font-size: 0.78rem;
+  gap: 0.25rem;
 }
 
-.eval-label {
+.eval-badge-label {
   color: #609060;
-  min-width: 8em;
 }
 
-.eval-score {
+.eval-badge-score {
   color: #a0f0a0;
   font-weight: 600;
-  font-size: 1.1rem;
-  min-width: 3em;
+  font-size: 0.85rem;
 }
 
-.eval-sub {
+.eval-badge-sub {
   color: #508050;
   font-size: 0.7rem;
+  margin-left: 0.15rem;
 }

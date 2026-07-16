@@ -89,7 +89,7 @@ class MirrorTraceApp {
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
   private progressFillEl!: HTMLElement;
-  private fullEvalStatusEl!: HTMLElement;
+  private evalBadgesEl!: HTMLElement;
   private modeLabelEl!: HTMLElement;
   private multiConfigEl!: HTMLElement;
   private multiParamsEl!: HTMLElement;
@@ -154,7 +154,7 @@ class MirrorTraceApp {
 
     this.coverageEl = document.getElementById('coverage-pct')!;
     this.progressFillEl = document.getElementById('progress-fill')!;
-    this.fullEvalStatusEl = document.getElementById('full-eval-status')!;
+    this.evalBadgesEl = document.getElementById('eval-badges')!;
     this.modeLabelEl = document.getElementById('mode-label')!;
     this.multiConfigEl = document.getElementById('multi-config')!;
     this.multiParamsEl = document.getElementById('multi-params')!;
@@ -398,8 +398,8 @@ class MirrorTraceApp {
     this.segmentRecords = [];
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
-    this.fullEvalStatusEl.style.display = 'none';
-    this.fullEvalStatusEl.textContent = '';
+    this.evalBadgesEl.style.display = 'none';
+    this.evalBadgesEl.innerHTML = '';
     /* Force layout recalculation so virtScale/virtOffX/Y reflect the
        post-panel canvas size before we clear and redraw. */
     this.resizeCanvases();
@@ -423,8 +423,8 @@ class MirrorTraceApp {
       this.allRawPaths = [];
       this.globalStartTime = 0;
       this.segmentRecords = [];
-      this.fullEvalStatusEl.style.display = 'none';
-      this.fullEvalStatusEl.textContent = '';
+      this.evalBadgesEl.style.display = 'none';
+      this.evalBadgesEl.innerHTML = '';
       this.resizeCanvases();
       this.updateCoverageUI();
     } else {
@@ -449,8 +449,8 @@ class MirrorTraceApp {
     this.multiLines = [];
     this.multiLineCovered = [];
     this.multiLineColors = [];
-    this.fullEvalStatusEl.style.display = 'none';
-    this.fullEvalStatusEl.textContent = '';
+    this.evalBadgesEl.style.display = 'none';
+    this.evalBadgesEl.innerHTML = '';
     this.resizeCanvases();
     this.updateCoverageUI();
   }
@@ -1148,21 +1148,20 @@ class MirrorTraceApp {
       ? Math.round((weightedSum / totalWeight) * 10) / 10
       : 0;
 
-    /* ── Display ── */
-    this.fullEvalStatusEl.innerHTML = `
-      <div class="eval-title">全图评价</div>
-      <div class="eval-row">
-        <span class="eval-label">算法 A（全局）</span>
-        <span class="eval-score">${globalScore.finalScore}</span>
-        <span class="eval-sub">空间 ${globalScore.spatialScore} · 时间 ${globalScore.timeScore}</span>
-      </div>
-      <div class="eval-row">
-        <span class="eval-label">算法 B（加权平均）</span>
-        <span class="eval-score">${avgScore}</span>
-        <span class="eval-sub">${this.segmentRecords.length} 段</span>
-      </div>
+    /* ── Display (inline badges in score panel) ── */
+    this.evalBadgesEl.innerHTML = `
+      <span class="eval-badge">
+        <span class="eval-badge-label">全评 A</span>
+        <span class="eval-badge-score">${globalScore.finalScore}</span>
+        <span class="eval-badge-sub">空 ${globalScore.spatialScore} · 时 ${globalScore.timeScore}</span>
+      </span>
+      <span class="eval-badge">
+        <span class="eval-badge-label">段均 B</span>
+        <span class="eval-badge-score">${avgScore}</span>
+        <span class="eval-badge-sub">${this.segmentRecords.length} 段</span>
+      </span>
     `;
-    this.fullEvalStatusEl.style.display = 'block';
+    this.evalBadgesEl.style.display = 'inline-flex';
 
     /* Persist the global evaluation score to localStorage */
     this.saveToPersistentHistory(globalScore);
