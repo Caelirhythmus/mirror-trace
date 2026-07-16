@@ -19,7 +19,7 @@ export interface HistoryEntry {
 }
 
 const STORAGE_KEY = 'mirror-trace-history';
-const MAX_ENTRIES = 100;
+const MAX_ENTRIES = 12;
 
 /* ------------------------------------------------------------------ */
 /*  Public API                                                         */

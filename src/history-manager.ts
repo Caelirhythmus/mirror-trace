@@ -143,7 +143,7 @@ export function renderHistoryList(
   el: HTMLElement,
   entries: HistoryEntry[],
 ): void {
-  const take = Math.min(entries.length, 15);
+  const take = Math.min(entries.length, 12);
   const recent = entries.slice(-take);
   el.innerHTML = recent
     .map(e => {
@@ -157,9 +157,9 @@ export function renderHistoryList(
 
       let detail = '';
       if (e.lineConfig) {
-        detail = `  ${e.lineConfig}`;
+        detail = ` ${e.lineConfig}`;
       }
-      detail += `  ${e.elapsedMs}ms`;
+      detail += ` ${Math.round(e.elapsedMs)}ms`;
 
       return `<span class="history-entry">${badge} ${time}  ${e.finalScore}${detail}</span>`;
     })
