@@ -751,6 +751,8 @@ class MirrorTraceApp {
 
   private onPointerDown(e: PointerEvent): void {
     this.isDrawing = true;
+    /* Capture pointer so pointerup fires even outside the canvas */
+    this.userCanvas.setPointerCapture(e.pointerId);
     this.pointerDownTime = performance.now();
     /* Any new stroke discards the redo future */
     this.strokeHistory.length = this.historyPointer + 1;
