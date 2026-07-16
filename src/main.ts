@@ -73,6 +73,11 @@ class MirrorTraceApp {
   private coveragePct = 0;
   private fullEvalReady = false;
 
+  /* full-evaluation data collection */
+  private allRawPaths: Point[][] = [];
+  private globalStartTime = 0;
+  private segmentRecords: { score: ScoreResult; subPathLen: number }[] = [];
+
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
   /* ──────────────────────────────────────────────── */
@@ -177,6 +182,9 @@ class MirrorTraceApp {
     this.covered = new Array(this.refPath.length).fill(false);
     this.coveragePct = 0;
     this.fullEvalReady = false;
+    this.allRawPaths = [];
+    this.globalStartTime = 0;
+    this.segmentRecords = [];
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
     this.updateCoverageUI();
@@ -418,13 +426,23 @@ class MirrorTraceApp {
     this.strokeHistory.length = this.historyPointer + 1;
     this.userRawPath = [];
 
-    /* Clear user canvas and previous score */
-    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    /* Start global timer on very first stroke */
+    if (this.allRawPaths.length === 0) {
+      this.globalStartTime = performance.now();
+    }
+
+    if (this.singleStrokeMode) {
+      /* Single-stroke mode: clear canvas each time */
+      this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    }
     this.userProcessedPath = [];
     this.clearScoreDisplay();
 
-    /* Draw heatmap guide as background layer */
-    this.drawHeatmapGuide();
+    /* Draw heatmap guide as background layer (only needed in single mode;
+       in overview mode the overlay stays from previous strokes) */
+    if (this.singleStrokeMode) {
+      this.drawHeatmapGuide();
+    }
 
     const p = this.clientToCanvas(e);
     this.userRawPath.push(p);
@@ -486,6 +504,13 @@ class MirrorTraceApp {
       const match = findSegment(this.refPath, this.userRawPath);
       refSubPath = match.subPath;
 
+      /* Store stroke & segment data for full evaluation */
+      this.allRawPaths.push([...this.userRawPath]);
+      this.segmentRecords.push({
+        score: null as unknown as ScoreResult, // placeholder, filled below
+        subPathLen: arcLength(refSubPath),
+      });
+
       /* Mark covered indices on refPath */
       for (let i = match.startIdx; i <= match.endIdx; i++) {
         this.covered[i] = true;
@@ -495,13 +520,6 @@ class MirrorTraceApp {
       );
       this.updateCoverageUI();
 
-      /* Check for full-evaluation threshold */
-      if (this.coveragePct >= 97 && !this.fullEvalReady) {
-        this.fullEvalReady = true;
-        this.fullEvalStatusEl.textContent = `完整临摹 ${this.coveragePct}% — 查看全图评价`;
-        this.fullEvalStatusEl.style.display = 'block';
-      }
-
       /* Redraw ref canvas to show updated coverage */
       this.drawRefCanvas();
     }
@@ -510,11 +528,24 @@ class MirrorTraceApp {
 
     this.userProcessedPath = resampled;
 
-    /* Overlay the processed path for visual feedback */
-    this.drawUserProcessed();
+    /* Only show processed overlay in single-stroke mode */
+    if (this.singleStrokeMode) {
+      this.drawUserProcessed();
+    }
 
     /* Score the attempt */
     const score = computeScores(refSubPath, resampled, elapsedMs);
+
+    /* Store score in segment records (overview mode) */
+    if (!this.singleStrokeMode && this.segmentRecords.length > 0) {
+      const last = this.segmentRecords[this.segmentRecords.length - 1];
+      last.score = score;
+    }
+
+    /* Auto-trigger full evaluation when coverage ≥ 97 % */
+    if (!this.singleStrokeMode && this.coveragePct >= 97 && !this.fullEvalReady) {
+      this.triggerFullEvaluation(score);
+    }
     this.showScore(score);
 
     /* Save to history */
@@ -608,6 +639,78 @@ class MirrorTraceApp {
   private updateUndoRedoButtons(): void {
     this.undoBtnEl.disabled = this.historyPointer < 0;
     this.redoBtnEl.disabled = this.historyPointer >= this.strokeHistory.length - 1;
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Full evaluation (triggered at ≥ 97 % coverage)  */
+  /* ──────────────────────────────────────────────── */
+
+  /**
+   * Compute and display full evaluation results using two algorithms:
+   *
+   *   A — Global timer + global spatial score.
+   *       All strokes are concatenated into one path (with straight-line
+   *       connectors), simplified, resampled to full refPath length,
+   *       then scored as a single attempt.
+   *
+   *   B — Length-weighted average of all segment final scores.
+   */
+  private triggerFullEvaluation(lastStrokeScore: ScoreResult): void {
+    this.fullEvalReady = true;
+
+    const globalElapsed = performance.now() - this.globalStartTime;
+
+    /* ── Algorithm A: Global (concatenated path) ── */
+    let globalCombined: Point[] = [];
+    for (let s = 0; s < this.allRawPaths.length; s++) {
+      const stroke = this.allRawPaths[s];
+      if (stroke.length < 2) continue;
+      if (globalCombined.length === 0) {
+        globalCombined.push(...stroke.map(p => ({ x: p.x, y: p.y })));
+      } else {
+        /* Connector: straight line from end of previous stroke to start of this one */
+        globalCombined.push(stroke[0]);
+        globalCombined.push(...stroke.map(p => ({ x: p.x, y: p.y })));
+      }
+    }
+
+    let globalScore: ScoreResult;
+    if (globalCombined.length >= 3) {
+      const simplified = rdpSimplify(globalCombined, 0.5);
+      const resampled = resampleToCount(simplified, this.refPath.length);
+      globalScore = computeScores(this.refPath, resampled, globalElapsed);
+    } else {
+      globalScore = lastStrokeScore;
+    }
+
+    /* ── Algorithm B: Length-weighted average ── */
+    let weightedSum = 0;
+    let totalWeight = 0;
+    for (const rec of this.segmentRecords) {
+      if (rec.score) {
+        weightedSum += rec.score.finalScore * rec.subPathLen;
+        totalWeight += rec.subPathLen;
+      }
+    }
+    const avgScore = totalWeight > 0
+      ? Math.round((weightedSum / totalWeight) * 10) / 10
+      : 0;
+
+    /* ── Display ── */
+    this.fullEvalStatusEl.innerHTML = `
+      <div class="eval-title">全图评价</div>
+      <div class="eval-row">
+        <span class="eval-label">算法 A（全局）</span>
+        <span class="eval-score">${globalScore.finalScore}</span>
+        <span class="eval-sub">空间 ${globalScore.spatialScore} · 时间 ${globalScore.timeScore}</span>
+      </div>
+      <div class="eval-row">
+        <span class="eval-label">算法 B（加权平均）</span>
+        <span class="eval-score">${avgScore}</span>
+        <span class="eval-sub">${this.segmentRecords.length} 段</span>
+      </div>
+    `;
+    this.fullEvalStatusEl.style.display = 'block';
   }
 
   /* ──────────────────────────────────────────────── */
