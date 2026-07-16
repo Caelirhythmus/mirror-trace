@@ -46,9 +46,10 @@ class MirrorTraceApp {
   private dpr = 1;
   private cssW = 0;
   private cssH = 0;
-  /** Scale factors from virtual → actual CSS pixel space */
-  private get scaleX(): number { return this.cssW / VIRTUAL_W; }
-  private get scaleY(): number { return this.cssH / VIRTUAL_H; }
+  /** Uniform scale + centering offset from virtual → actual CSS pixel space */
+  private get virtScale(): number { return Math.min(this.cssW / VIRTUAL_W, this.cssH / VIRTUAL_H); }
+  private get virtOffX(): number { return (this.cssW - VIRTUAL_W * this.virtScale) / 2; }
+  private get virtOffY(): number { return (this.cssH - VIRTUAL_H * this.virtScale) / 2; }
 
   /* paths */
   private refPath: Point[] = [];          // reference curve (from generator)
@@ -246,11 +247,11 @@ class MirrorTraceApp {
 
     this.refCanvas.width = this.cssW * this.dpr;
     this.refCanvas.height = this.cssH * this.dpr;
-    /* Transform maps virtual (800×600) → CSS pixels → device pixels */
+    /* Uniform scale + centre: preserves aspect ratio, letterboxes extra space */
     this.refCtx.setTransform(
-      this.dpr * this.scaleX, 0,
-      0, this.dpr * this.scaleY,
-      0, 0,
+      this.dpr * this.virtScale, 0,
+      0, this.dpr * this.virtScale,
+      this.dpr * this.virtOffX, this.dpr * this.virtOffY,
     );
 
     /* User canvas — use its own rect (should be nearly identical) */
@@ -258,9 +259,9 @@ class MirrorTraceApp {
     this.userCanvas.width = Math.round(rectU.width) * this.dpr;
     this.userCanvas.height = Math.round(rectU.height) * this.dpr;
     this.userCtx.setTransform(
-      this.dpr * this.scaleX, 0,
-      0, this.dpr * this.scaleY,
-      0, 0,
+      this.dpr * this.virtScale, 0,
+      0, this.dpr * this.virtScale,
+      this.dpr * this.virtOffX, this.dpr * this.virtOffY,
     );
 
     /* Redraw ref canvas */
@@ -1291,9 +1292,11 @@ class MirrorTraceApp {
 
   private clientToCanvas(e: PointerEvent): Point {
     const rect = this.userCanvas.getBoundingClientRect();
+    const cssX = e.clientX - rect.left;
+    const cssY = e.clientY - rect.top;
     return {
-      x: (e.clientX - rect.left) / this.scaleX,
-      y: (e.clientY - rect.top) / this.scaleY,
+      x: (cssX - this.virtOffX) / this.virtScale,
+      y: (cssY - this.virtOffY) / this.virtScale,
     };
   }
 }
