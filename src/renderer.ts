@@ -24,6 +24,7 @@ export interface RefCanvasState {
   latestMatchEnd: number;
   liveHotspotPt: Point | null;
   heatmapEnabled: boolean;
+  colorEnabled: boolean;
 }
 
 /** State needed to render the heatmap guide on the user canvas */
@@ -132,16 +133,18 @@ export function drawRefCanvas(
     for (let li = 0; li < state.multiLines.length; li++) {
       const line = state.multiLines[li];
       if (line.length < 2) continue;
-      const color = state.multiLineColors[li] || colors[li % colors.length];
+      const baseColor = state.colorEnabled
+        ? (state.multiLineColors[li] || colors[li % colors.length])
+        : '#ffffff';
       const covered = state.multiLineCovered[li] || false;
       const segCov = state.complexLineCoverage[li];
 
       if (segCov) {
         /* Complex curve: dim covered segments, highlight uncovered */
         drawLineRanges(ctx, line, 'rgba(255,255,255,0.15)', 1.5, i => segCov[i]);
-        drawLineRanges(ctx, line, color, 2.5, i => !segCov[i]);
+        drawLineRanges(ctx, line, baseColor, 2.5, i => !segCov[i]);
       } else {
-        ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : color;
+        ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : baseColor;
         ctx.lineWidth = covered ? 1.5 : 2.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';

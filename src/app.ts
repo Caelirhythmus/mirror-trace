@@ -78,6 +78,7 @@ export class MirrorTraceApp {
   heatmapEnabled = true;
   gridEnabled = false;
   private gridSize = 40;
+  colorEnabled = false;
   /** false = overview mode (multi-stroke, segment matching) */
   singleStrokeMode = false;
   /** true = multi-line mode (multiple lines stacked, only in single-stroke) */
@@ -238,6 +239,12 @@ export class MirrorTraceApp {
     gridSizeInput.addEventListener('change', () => {
       this.gridSize = Math.max(20, Math.min(100, parseInt(gridSizeInput.value) || 40));
       this.updateGridOverlay();
+    });
+
+    /* Color toggle */
+    document.getElementById('toggle-color')!.addEventListener('change', (e) => {
+      this.colorEnabled = (e.target as HTMLInputElement).checked;
+      this.drawRefCanvas();
     });
 
     /* Mode switch: overview ↔ single-stroke */
@@ -716,6 +723,7 @@ export class MirrorTraceApp {
       latestMatchEnd: this.latestMatchEnd,
       liveHotspotPt: this.liveHotspotPt,
       heatmapEnabled: this.heatmapEnabled,
+      colorEnabled: this.colorEnabled,
     };
   }
 
