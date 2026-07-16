@@ -135,3 +135,53 @@ export function generateRandomCurve(
 
   return points;
 }
+
+/* ------------------------------------------------------------------ */
+/*  Arch curve (single-stroke mode)                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generate a simple arch (bridge) curve for single-stroke mode.
+ *
+ * The curve is a single cubic Bézier spanning the canvas left-to-right.
+ * `curvature` controls how high (positive) or low (negative) the arch
+ * goes relative to the canvas height.  curvature = 0  ⇒  straight line.
+ *
+ * @param w         Canvas CSS width
+ * @param h         Canvas CSS height
+ * @param curvature Relative arch height; default 0.15 (15 % of h)
+ * @param margin    Padding from edges
+ * @param step      Sampling interval in t; default 0.015
+ */
+export function generateArchCurve(
+  w: number,
+  h: number,
+  curvature = 0.15,
+  margin = 40,
+  step = 0.015,
+): Point[] {
+  const midY = h / 2;
+  const archPx = curvature * h;
+
+  /* Endpoints with a little vertical jitter so not every arch is dead-centre */
+  const yOff = (Math.random() - 0.5) * h * 0.08;
+  const p0: Point = { x: margin + Math.random() * w * 0.05, y: midY + yOff };
+  const p3: Point = { x: w - margin - Math.random() * w * 0.05, y: midY + yOff };
+
+  /* Control points – horizontal spread at 1/3 and 2/3, vertical = arch */
+  const p1: Point = {
+    x: p0.x + (p3.x - p0.x) * 0.33 + (Math.random() - 0.5) * w * 0.04,
+    y: midY - archPx + yOff,
+  };
+  const p2: Point = {
+    x: p0.x + (p3.x - p0.x) * 0.67 + (Math.random() - 0.5) * w * 0.04,
+    y: midY - archPx + yOff,
+  };
+
+  /* Sample */
+  const points: Point[] = [];
+  for (let t = 0; t <= 1 + step * 0.5; t += step) {
+    points.push(evalCubic(p0, p1, p2, p3, Math.min(t, 1)));
+  }
+  return points;
+}
