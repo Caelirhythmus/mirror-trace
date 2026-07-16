@@ -9,6 +9,7 @@
 import { Point } from './types';
 import { generateRandomCurve } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
+import { computeScores, ScoreResult } from './scoring';
 
 class MirrorTraceApp {
   /* canvases & contexts */
@@ -29,6 +30,16 @@ class MirrorTraceApp {
 
   /* state */
   private isDrawing = false;
+  private pointerDownTime = 0;
+
+  /* DOM elements for score display */
+  private scoreFinalEl!: HTMLElement;
+  private scoreSpatialEl!: HTMLElement;
+  private scoreTimeEl!: HTMLElement;
+  private debugHausdorffEl!: HTMLElement;
+  private debugRmsEl!: HTMLElement;
+  private debugElapsedEl!: HTMLElement;
+  private debugIdealEl!: HTMLElement;
 
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
@@ -40,6 +51,14 @@ class MirrorTraceApp {
     this.userCanvas = document.getElementById('user-canvas') as HTMLCanvasElement;
     this.refCtx = this.refCanvas.getContext('2d')!;
     this.userCtx = this.userCanvas.getContext('2d')!;
+
+    this.scoreFinalEl = document.getElementById('score-final')!;
+    this.scoreSpatialEl = document.getElementById('score-spatial')!;
+    this.scoreTimeEl = document.getElementById('score-time')!;
+    this.debugHausdorffEl = document.getElementById('debug-hausdorff')!;
+    this.debugRmsEl = document.getElementById('debug-rms')!;
+    this.debugElapsedEl = document.getElementById('debug-elapsed')!;
+    this.debugIdealEl = document.getElementById('debug-ideal')!;
 
     this.initResizeObserver();
     this.bindPointerEvents();
@@ -80,11 +99,12 @@ class MirrorTraceApp {
   /*  Curve generation                                */
   /* ──────────────────────────────────────────────── */
 
-  /** Generate a fresh reference curve and reset user canvas */
+  /** Generate a fresh reference curve and reset everything */
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
     this.refPath = generateRandomCurve(this.cssW, this.cssH, 40);
     this.clearUserCanvas();
+    this.clearScoreDisplay();
     this.drawScene();
   }
 
@@ -132,6 +152,28 @@ class MirrorTraceApp {
     ctx.stroke();
   }
 
+  /** Reset score panel to default state */
+  private clearScoreDisplay(): void {
+    this.scoreFinalEl.textContent = '\u2014';
+    this.scoreSpatialEl.textContent = '\u2014';
+    this.scoreTimeEl.textContent = '\u2014';
+    this.debugHausdorffEl.textContent = '\u2014';
+    this.debugRmsEl.textContent = '\u2014';
+    this.debugElapsedEl.textContent = '\u2014';
+    this.debugIdealEl.textContent = '\u2014';
+  }
+
+  /** Update score panel with a fresh ScoreResult */
+  private showScore(s: ScoreResult): void {
+    this.scoreFinalEl.textContent = String(s.finalScore);
+    this.scoreSpatialEl.textContent = String(s.spatialScore);
+    this.scoreTimeEl.textContent = String(s.timeScore);
+    this.debugHausdorffEl.textContent = String(s.hausdorff95Dist);
+    this.debugRmsEl.textContent = String(s.rmsDist);
+    this.debugElapsedEl.textContent = String(s.elapsedMs);
+    this.debugIdealEl.textContent = String(s.idealMs);
+  }
+
   /** Highlight process-path overlay */
   private drawUserProcessed(): void {
     const pts = this.userProcessedPath;
@@ -165,11 +207,13 @@ class MirrorTraceApp {
 
   private onPointerDown(e: PointerEvent): void {
     this.isDrawing = true;
+    this.pointerDownTime = performance.now();
     this.userRawPath = [];
 
-    /* Clear user canvas */
+    /* Clear user canvas and previous score */
     this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
     this.userProcessedPath = [];
+    this.clearScoreDisplay();
 
     const p = this.clientToCanvas(e);
     this.userRawPath.push(p);
@@ -198,15 +242,17 @@ class MirrorTraceApp {
     if (!this.isDrawing) return;
     this.isDrawing = false;
 
+    const elapsedMs = performance.now() - this.pointerDownTime;
+
     /* Process the captured path */
-    this.processUserPath();
+    this.processUserPath(elapsedMs);
   }
 
   /* ──────────────────────────────────────────────── */
   /*  Trajectory processing (RDP → resample)          */
   /* ──────────────────────────────────────────────── */
 
-  private processUserPath(): void {
+  private processUserPath(elapsedMs: number): void {
     if (this.userRawPath.length < 3) return;
     if (this.refPath.length < 2) return;
 
@@ -219,6 +265,10 @@ class MirrorTraceApp {
     /* Overlay the processed path for visual feedback */
     this.drawUserProcessed();
 
+    /* Score the attempt */
+    const score = computeScores(this.refPath, resampled, elapsedMs);
+    this.showScore(score);
+
     /* Log stats for debugging */
     console.log({
       rawPts: this.userRawPath.length,
@@ -226,6 +276,7 @@ class MirrorTraceApp {
       afterResample: resampled.length,
       refPts: this.refPath.length,
       rawLength: arcLength(this.userRawPath).toFixed(1),
+      score: score.finalScore,
     });
   }
 

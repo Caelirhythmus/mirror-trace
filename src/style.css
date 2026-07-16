@@ -58,3 +58,55 @@ canvas {
   background: #0f0f1a;
   touch-action: none;  /* prevent scroll/zoom on touch devices */
 }
+
+/* ─── Score panel ─── */
+
+#score-panel {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 0.75rem;
+  padding: 0.5rem 1rem;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.score-primary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.score-label {
+  font-size: 0.8rem;
+  color: #606080;
+}
+
+.score-value {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: #a0d0ff;
+  min-width: 2em;
+  text-align: right;
+}
+
+.score-detail {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: #8080a0;
+}
+
+.score-detail strong {
+  color: #c0c0e0;
+  font-weight: 500;
+}
+
+.score-debug {
+  font-size: 0.7rem;
+  color: #505060;
+  margin-left: auto;
+}

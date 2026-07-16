@@ -19,6 +19,22 @@
         <canvas id="user-canvas"></canvas>
       </div>
     </div>
+
+    <div id="score-panel">
+      <div class="score-primary">
+        <span class="score-label">总分</span>
+        <span class="score-value" id="score-final">—</span>
+      </div>
+      <div class="score-detail">
+        <span>空间 <strong id="score-spatial">—</strong></span>
+        <span>时间 <strong id="score-time">—</strong></span>
+      </div>
+      <div class="score-debug">
+        Hausdorff95: <span id="debug-hausdorff">—</span> px &nbsp;|&nbsp;
+        RMS: <span id="debug-rms">—</span> px &nbsp;|&nbsp;
+        用时 <span id="debug-elapsed">—</span> / <span id="debug-ideal">—</span> ms
+      </div>
+    </div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
