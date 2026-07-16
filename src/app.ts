@@ -308,6 +308,11 @@ export class MirrorTraceApp {
       if (!id) return;
       const preset = findPreset(id);
       if (!preset) return;
+      /* Presets always use single-stroke (multi-line / hell) mode */
+      this.singleStrokeMode = true;
+      this.modeLabelEl.textContent = '单笔';
+      (document.getElementById('toggle-mode') as HTMLInputElement).checked = true;
+
       if (preset.hellMode) {
         this.hellStraightCount = preset.counts[0];
         this.hellArchCount = preset.counts[1];
@@ -319,6 +324,7 @@ export class MirrorTraceApp {
         (document.getElementById('input-hell-arch') as HTMLInputElement).value = String(preset.counts[1]);
         (document.getElementById('input-hell-complex') as HTMLInputElement).value = String(preset.counts[2]);
         (document.getElementById('toggle-hell') as HTMLInputElement).checked = true;
+        (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
       } else {
         this.straightLineCount = preset.counts[0];
         this.totalLineCount = preset.counts[0] + preset.counts[1];
@@ -328,6 +334,7 @@ export class MirrorTraceApp {
         (document.getElementById('input-straight') as HTMLInputElement).value = String(preset.counts[0]);
         (document.getElementById('input-total') as HTMLInputElement).value = String(this.totalLineCount);
         (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
+        (document.getElementById('toggle-hell') as HTMLInputElement).checked = false;
       }
       this.updateConfigVisibility();
       this.newCurve();
