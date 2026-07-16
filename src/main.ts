@@ -66,6 +66,7 @@ class MirrorTraceApp {
   private historyChartEl!: HTMLCanvasElement;
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
+  private progressFillEl!: HTMLElement;
   private fullEvalStatusEl!: HTMLElement;
   private modeLabelEl!: HTMLElement;
 
@@ -78,6 +79,10 @@ class MirrorTraceApp {
   private allRawPaths: Point[][] = [];
   private globalStartTime = 0;
   private segmentRecords: { score: ScoreResult; subPathLen: number }[] = [];
+
+  /* latest segment match (for visual highlight on ref canvas) */
+  private latestMatchStart = -1;
+  private latestMatchEnd = -1;
 
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
@@ -110,6 +115,7 @@ class MirrorTraceApp {
     this.refreshHistoryPanel();
 
     this.coverageEl = document.getElementById('coverage-pct')!;
+    this.progressFillEl = document.getElementById('progress-fill')!;
     this.fullEvalStatusEl = document.getElementById('full-eval-status')!;
     this.modeLabelEl = document.getElementById('mode-label')!;
 
@@ -196,6 +202,8 @@ class MirrorTraceApp {
     this.allRawPaths = [];
     this.globalStartTime = 0;
     this.segmentRecords = [];
+    this.latestMatchStart = -1;
+    this.latestMatchEnd = -1;
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
     this.updateCoverageUI();
@@ -283,6 +291,16 @@ class MirrorTraceApp {
 
     /* Covered portions: bright blue, slightly thicker */
     this.drawRanges(ctx, '#4a9eff', 2.5, i => this.covered[i]);
+
+    /* Latest-match highlight (yellow glow) */
+    if (this.latestMatchStart >= 0 && this.latestMatchEnd >= this.latestMatchStart) {
+      /* Outer glow */
+      this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
+        'rgba(255, 220, 80, 0.35)', 6);
+      /* Inner bright */
+      this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
+        'rgba(255, 240, 120, 0.60)', 3);
+    }
   }
 
   private clearUserCanvas(): void {
@@ -387,8 +405,10 @@ class MirrorTraceApp {
   private updateCoverageUI(): void {
     if (this.singleStrokeMode) {
       this.coverageEl.textContent = '\u2014';
+      this.progressFillEl.style.width = '0%';
     } else {
       this.coverageEl.textContent = `${this.coveragePct}%`;
+      this.progressFillEl.style.width = `${this.coveragePct}%`;
     }
   }
 
@@ -464,6 +484,13 @@ class MirrorTraceApp {
     this.userProcessedPath = [];
     this.clearScoreDisplay();
 
+    /* Clear latest-match highlight on ref canvas */
+    if (this.latestMatchStart >= 0) {
+      this.latestMatchStart = -1;
+      this.latestMatchEnd = -1;
+      this.drawRefCanvas();
+    }
+
     /* Draw heatmap guide as background layer (only needed in single mode;
        in overview mode the overlay stays from previous strokes) */
     if (this.singleStrokeMode) {
@@ -536,6 +563,10 @@ class MirrorTraceApp {
         score: null as unknown as ScoreResult, // placeholder, filled below
         subPathLen: arcLength(refSubPath),
       });
+
+      /* Record latest match for visual highlight on ref canvas */
+      this.latestMatchStart = match.startIdx;
+      this.latestMatchEnd = match.endIdx;
 
       /* Mark covered indices on refPath */
       for (let i = match.startIdx; i <= match.endIdx; i++) {

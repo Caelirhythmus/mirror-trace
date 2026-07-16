@@ -117,11 +117,31 @@ canvas {
   font-size: 0.75rem;
   color: #707090;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.progress-bar {
+  width: 50px;
+  height: 6px;
+  border-radius: 3px;
+  background: #1a1a3a;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #2a6aaa, #4a9eff);
+  transition: width 0.3s ease;
 }
 
 #coverage-pct {
   color: #a0d0ff;
   font-weight: 500;
+  min-width: 2.5em;
 }
 
 /* ─── Mode indicator ─── */
