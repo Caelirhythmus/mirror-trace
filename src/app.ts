@@ -880,9 +880,11 @@ export class MirrorTraceApp {
     const duration = Math.max(500, Math.min(3000, state.score?.elapsedMs ?? 1500));
     const ctx = this.userCtx;
 
-    /* Use a bright, distinct colour so the replay pops against the dark background */
+    /* Use a bright, distinct colour with a glow so the replay pops against
+       the dark background.  lineWidth matches replayRawStroke (2.5) since
+       the original per-segment pressure data is not preserved in history. */
     ctx.strokeStyle = '#ff4d4d';
-    ctx.lineWidth = 3.5;
+    ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.shadowColor = '#ff4d4d';
@@ -908,10 +910,13 @@ export class MirrorTraceApp {
       if (idx < total) {
         this.replayRafId = requestAnimationFrame(draw);
       } else {
-        /* Replay finished — remove glow so the final stroke looks clean */
+        /* Replay finished — restore the full canvas (all history strokes
+           plus the heatmap) so earlier strokes are not missing. */
         ctx.shadowBlur = 0;
         ctx.stroke();
         this.replayRafId = 0;
+        this.clearUserCanvas();
+        this.redrawUserCanvasContent();
       }
     };
     this.replayRafId = requestAnimationFrame(draw);
