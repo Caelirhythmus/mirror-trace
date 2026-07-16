@@ -354,16 +354,81 @@ export class MirrorTraceApp {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.redo(); }
       if (!e.ctrlKey && !e.metaKey) {
-        if (e.key === 'r' || e.key === 'R') { e.preventDefault(); this.redraw(); }
-        if (e.key === 'n' || e.key === 'N') { e.preventDefault(); this.newCurve(); }
-        if (e.key === '?') {
-          e.preventDefault();
-          const overlay = document.getElementById('help-overlay')!;
-          overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
-        }
-        if (e.key === 's' || e.key === 'S') {
-          e.preventDefault();
-          this.doExport('svg');
+        switch (e.key) {
+          case 'r': case 'R': e.preventDefault(); this.redraw(); break;
+          case 'n': case 'N': e.preventDefault(); this.newCurve(); break;
+          case 's': case 'S': e.preventDefault(); this.doExport('svg'); break;
+          case '?':
+            e.preventDefault();
+            const overlay = document.getElementById('help-overlay')!;
+            overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+            break;
+          /* Mode shortcuts */
+          case '1':
+            e.preventDefault();
+            this.singleStrokeMode = false;
+            this.hellMode = false;
+            this.multiLineMode = false;
+            this.modeLabelEl.textContent = '概括';
+            (document.getElementById('toggle-mode') as HTMLInputElement).checked = false;
+            (document.getElementById('toggle-multi') as HTMLInputElement).checked = false;
+            (document.getElementById('toggle-hell') as HTMLInputElement).checked = false;
+            this.updateConfigVisibility();
+            this.newCurve();
+            break;
+          case '2':
+            e.preventDefault();
+            this.singleStrokeMode = true;
+            this.hellMode = false;
+            this.multiLineMode = false;
+            this.modeLabelEl.textContent = '单笔';
+            (document.getElementById('toggle-mode') as HTMLInputElement).checked = true;
+            (document.getElementById('toggle-multi') as HTMLInputElement).checked = false;
+            (document.getElementById('toggle-hell') as HTMLInputElement).checked = false;
+            this.updateConfigVisibility();
+            this.newCurve();
+            break;
+          case '3':
+            e.preventDefault();
+            this.singleStrokeMode = true;
+            this.multiLineMode = true;
+            this.hellMode = false;
+            this.modeLabelEl.textContent = '单笔';
+            (document.getElementById('toggle-mode') as HTMLInputElement).checked = true;
+            (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
+            (document.getElementById('toggle-hell') as HTMLInputElement).checked = false;
+            this.updateConfigVisibility();
+            this.newCurve();
+            break;
+          case '4':
+            e.preventDefault();
+            this.singleStrokeMode = true;
+            this.hellMode = true;
+            this.multiLineMode = true;
+            this.modeLabelEl.textContent = '单笔';
+            (document.getElementById('toggle-mode') as HTMLInputElement).checked = true;
+            (document.getElementById('toggle-hell') as HTMLInputElement).checked = true;
+            (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
+            this.updateConfigVisibility();
+            this.newCurve();
+            break;
+          /* Toggle shortcuts */
+          case 'g': case 'G':
+            e.preventDefault();
+            (document.getElementById('toggle-grid') as HTMLInputElement).click();
+            break;
+          case 'c': case 'C':
+            e.preventDefault();
+            (document.getElementById('toggle-color') as HTMLInputElement).click();
+            break;
+          case 'h': case 'H':
+            e.preventDefault();
+            (document.getElementById('toggle-heatmap') as HTMLInputElement).click();
+            break;
+          case 'p': case 'P':
+            e.preventDefault();
+            (document.getElementById('toggle-pressure') as HTMLInputElement).click();
+            break;
         }
       }
     });
