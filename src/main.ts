@@ -1,71 +1,178 @@
 /**
  * Mirror Trace — 路径临摹工具
  *
- * 左右 Canvas 双缓冲框架：
- *  - refCanvas: 显示随机生成的参考贝塞尔曲线
- *  - userCanvas: 用户临摹绘制区域
+ * 左右 Canvas 双缓冲框架，集成：
+ *  - 左侧：随机 C¹ 连续贝塞尔曲线（参考线）
+ *  - 右侧：用户临摹，RDP 压缩 → 等距重采样
  */
 
-interface Point {
-  x: number;
-  y: number;
-}
+import { Point } from './types';
+import { generateRandomCurve } from './generator';
+import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 
 class MirrorTraceApp {
+  /* canvases & contexts */
   private refCanvas!: HTMLCanvasElement;
   private userCanvas!: HTMLCanvasElement;
   private refCtx!: CanvasRenderingContext2D;
   private userCtx!: CanvasRenderingContext2D;
 
+  /* dimensions */
+  private dpr = 1;
+  private cssW = 0;
+  private cssH = 0;
+
+  /* paths */
+  private refPath: Point[] = [];          // reference curve (from generator)
+  private userRawPath: Point[] = [];      // raw coalesced pointer points
+  private userProcessedPath: Point[] = []; // after RDP + resample
+
+  /* state */
   private isDrawing = false;
-  private currentPath: Point[] = [];
+
+  /* ──────────────────────────────────────────────── */
+  /*  Lifecycle                                       */
+  /* ──────────────────────────────────────────────── */
 
   constructor() {
-    this.initCanvases();
-    this.bindEvents();
-    this.resize();
-  }
-
-  private initCanvases(): void {
+    this.dpr = window.devicePixelRatio || 1;
     this.refCanvas = document.getElementById('ref-canvas') as HTMLCanvasElement;
     this.userCanvas = document.getElementById('user-canvas') as HTMLCanvasElement;
-
     this.refCtx = this.refCanvas.getContext('2d')!;
     this.userCtx = this.userCanvas.getContext('2d')!;
 
-    // Handle DPI scaling for sharp rendering
-    const dpr = window.devicePixelRatio || 1;
-    const resizeObserver = new ResizeObserver(() => {
-      const rect = this.refCanvas.getBoundingClientRect();
-      this.refCanvas.width = rect.width * dpr;
-      this.refCanvas.height = rect.height * dpr;
-      this.refCtx.scale(dpr, dpr);
-
-      this.userCanvas.width = rect.width * dpr;
-      this.userCanvas.height = rect.height * dpr;
-      this.userCtx.scale(dpr, dpr);
-
-      this.drawScene();
-    });
-    resizeObserver.observe(this.refCanvas);
+    this.initResizeObserver();
+    this.bindPointerEvents();
+    /* Force initial measurement so we have cssW/cssH before generating */
+    this.resizeCanvases();
+    this.newCurve();
   }
 
-  private resize(): void {
-    // Trigger initial resize via ResizeObserver
+  /* ──────────────────────────────────────────────── */
+  /*  Sizing / DPI                                    */
+  /* ──────────────────────────────────────────────── */
+
+  private initResizeObserver(): void {
+    const ro = new ResizeObserver(() => this.resizeCanvases());
+    ro.observe(this.refCanvas);
   }
 
-  private bindEvents(): void {
-    this.userCanvas.addEventListener('pointerdown', this.onPointerDown.bind(this));
-    this.userCanvas.addEventListener('pointermove', this.onPointerMove.bind(this));
-    this.userCanvas.addEventListener('pointerup', this.onPointerUp.bind(this));
-    this.userCanvas.addEventListener('pointerleave', this.onPointerUp.bind(this));
+  private resizeCanvases(): void {
+    /* Ref canvas sets the baseline CSS size */
+    const rectR = this.refCanvas.getBoundingClientRect();
+    this.cssW = Math.round(rectR.width);
+    this.cssH = Math.round(rectR.height);
+
+    this.refCanvas.width = this.cssW * this.dpr;
+    this.refCanvas.height = this.cssH * this.dpr;
+    this.refCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    /* User canvas — use its own rect (should be nearly identical) */
+    const rectU = this.userCanvas.getBoundingClientRect();
+    this.userCanvas.width = Math.round(rectU.width) * this.dpr;
+    this.userCanvas.height = Math.round(rectU.height) * this.dpr;
+    this.userCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    this.drawScene();
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Curve generation                                */
+  /* ──────────────────────────────────────────────── */
+
+  /** Generate a fresh reference curve and reset user canvas */
+  newCurve(): void {
+    if (this.cssW < 100 || this.cssH < 100) return;
+    this.refPath = generateRandomCurve(this.cssW, this.cssH, 40);
+    this.clearUserCanvas();
+    this.drawScene();
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Drawing                                         */
+  /* ──────────────────────────────────────────────── */
+
+  private drawScene(): void {
+    this.drawRefCanvas();
+  }
+
+  private drawRefCanvas(): void {
+    const ctx = this.refCtx;
+    ctx.clearRect(0, 0, this.cssW, this.cssH);
+
+    if (this.refPath.length < 2) return;
+
+    ctx.strokeStyle = '#4a9eff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(this.refPath[0].x, this.refPath[0].y);
+    for (let i = 1; i < this.refPath.length; i++) {
+      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    }
+    ctx.stroke();
+  }
+
+  private clearUserCanvas(): void {
+    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    this.userRawPath = [];
+    this.userProcessedPath = [];
+  }
+
+  private drawUserIncremental(p: Point): void {
+    const ctx = this.userCtx;
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  }
+
+  /** Highlight process-path overlay */
+  private drawUserProcessed(): void {
+    const pts = this.userProcessedPath;
+    if (pts.length < 2) return;
+
+    const ctx = this.userCtx;
+    ctx.strokeStyle = 'rgba(255, 255, 100, 0.45)';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    ctx.stroke();
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Pointer events                                  */
+  /* ──────────────────────────────────────────────── */
+
+  private bindPointerEvents(): void {
+    const el = this.userCanvas;
+    el.addEventListener('pointerdown', this.onPointerDown.bind(this));
+    el.addEventListener('pointermove', this.onPointerMove.bind(this));
+    el.addEventListener('pointerup', this.onPointerUp.bind(this));
+    el.addEventListener('pointerleave', this.onPointerUp.bind(this));
   }
 
   private onPointerDown(e: PointerEvent): void {
     this.isDrawing = true;
-    this.currentPath = [];
+    this.userRawPath = [];
+
+    /* Clear user canvas */
+    this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
+    this.userProcessedPath = [];
+
     const p = this.clientToCanvas(e);
-    this.currentPath.push(p);
+    this.userRawPath.push(p);
     this.userCtx.beginPath();
     this.userCtx.moveTo(p.x, p.y);
   }
@@ -77,22 +184,54 @@ class MirrorTraceApp {
     if (events.length > 0) {
       for (const ev of events) {
         const p = this.clientToCanvas(ev);
-        this.currentPath.push(p);
-        this.userCtx.lineTo(p.x, p.y);
-        this.userCtx.stroke();
+        this.userRawPath.push(p);
+        this.drawUserIncremental(p);
       }
     } else {
       const p = this.clientToCanvas(e);
-      this.currentPath.push(p);
-      this.userCtx.lineTo(p.x, p.y);
-      this.userCtx.stroke();
+      this.userRawPath.push(p);
+      this.drawUserIncremental(p);
     }
   }
 
   private onPointerUp(_e: PointerEvent): void {
+    if (!this.isDrawing) return;
     this.isDrawing = false;
-    // TODO: trigger similarity scoring
+
+    /* Process the captured path */
+    this.processUserPath();
   }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Trajectory processing (RDP → resample)          */
+  /* ──────────────────────────────────────────────── */
+
+  private processUserPath(): void {
+    if (this.userRawPath.length < 3) return;
+    if (this.refPath.length < 2) return;
+
+    const rdpEpsilon = 0.5; // CSS pixels
+    const simplified = rdpSimplify(this.userRawPath, rdpEpsilon);
+    const resampled = resampleToCount(simplified, this.refPath.length);
+
+    this.userProcessedPath = resampled;
+
+    /* Overlay the processed path for visual feedback */
+    this.drawUserProcessed();
+
+    /* Log stats for debugging */
+    console.log({
+      rawPts: this.userRawPath.length,
+      afterRDP: simplified.length,
+      afterResample: resampled.length,
+      refPts: this.refPath.length,
+      rawLength: arcLength(this.userRawPath).toFixed(1),
+    });
+  }
+
+  /* ──────────────────────────────────────────────── */
+  /*  Utility                                         */
+  /* ──────────────────────────────────────────────── */
 
   private clientToCanvas(e: PointerEvent): Point {
     const rect = this.userCanvas.getBoundingClientRect();
@@ -101,32 +240,12 @@ class MirrorTraceApp {
       y: e.clientY - rect.top,
     };
   }
-
-  private drawScene(): void {
-    this.drawRefCanvas();
-  }
-
-  private drawRefCanvas(): void {
-    const ctx = this.refCtx;
-    const w = this.refCanvas.width / (window.devicePixelRatio || 1);
-    const h = this.refCanvas.height / (window.devicePixelRatio || 1);
-
-    ctx.clearRect(0, 0, w, h);
-    // Placeholder: draw a sample line
-    ctx.strokeStyle = '#4a9eff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(w * 0.1, h * 0.5);
-    for (let t = 0; t <= 1; t += 0.02) {
-      const x = w * (0.1 + t * 0.8);
-      const y = h * (0.3 + 0.4 * Math.sin(t * Math.PI * 3));
-      ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-  }
 }
 
-// Boot
+/* Boot */
 document.addEventListener('DOMContentLoaded', () => {
-  new MirrorTraceApp();
+  const app = new MirrorTraceApp();
+
+  /* Expose newCurve() to dev-tools / future UI button */
+  (window as unknown as Record<string, unknown>).__mirrorTrace = app;
 });
