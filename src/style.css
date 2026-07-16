@@ -13,14 +13,23 @@ html, body {
 }
 
 #app {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto auto;
   padding: 0.6rem 1rem;
-  height: 100vh;
+  height: 100dvh;
   max-width: 1400px;
   margin: 0 auto;
   overflow: hidden;
+}
+
+#canvas-container,
+#score-panel,
+#multi-config,
+#history-panel,
+#full-eval-status {
+  width: 100%;
+  max-width: 1200px;
+  justify-self: center;
 }
 
 h1 {
@@ -29,17 +38,14 @@ h1 {
   letter-spacing: 0.05em;
   margin-bottom: 0.3rem;
   color: #a0a0c0;
-  flex-shrink: 0;
+  text-align: center;
 }
 
 #canvas-container {
   display: flex;
   gap: 0.8rem;
-  flex: 1;
-  min-height: 120px;
-  max-height: 70vh;
-  width: 100%;
-  max-width: 1200px;
+  min-height: 60px;
+  overflow: hidden;
 }
 
 .canvas-wrapper {
@@ -68,8 +74,6 @@ canvas {
 /* ─── Score panel ─── */
 
 #score-panel {
-  width: 100%;
-  max-width: 1200px;
   margin-top: 0.4rem;
   padding: 0.35rem 0.8rem;
   background: #12122a;
@@ -78,7 +82,6 @@ canvas {
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex-shrink: 0;
 }
 
 .score-primary {
@@ -165,8 +168,6 @@ canvas {
 /* ─── Multi-line config panel ─── */
 
 #multi-config {
-  width: 100%;
-  max-width: 1200px;
   margin-top: 0.3rem;
   padding: 0.3rem 0.8rem;
   background: #12122a;
@@ -175,7 +176,6 @@ canvas {
   display: flex;
   align-items: center;
   gap: 1rem;
-  flex-shrink: 0;
 }
 
 .config-row {
@@ -299,14 +299,11 @@ canvas {
 /* ─── History panel ─── */
 
 #history-panel {
-  width: 100%;
-  max-width: 1200px;
   margin-top: 0.3rem;
   padding: 0.3rem 0.8rem;
   background: #12122a;
   border: 1px solid #2a2a4a;
   border-radius: 4px;
-  flex-shrink: 0;
 }
 
 #history-header {
@@ -367,15 +364,12 @@ canvas {
 /* ─── Full evaluation status ─── */
 
 #full-eval-status {
-  width: 100%;
-  max-width: 1200px;
   margin-top: 0.3rem;
   padding: 0.3rem 0.8rem;
   border-radius: 4px;
   background: #0a1a0a;
   border: 1px solid #2a4a2a;
   display: none;
-  flex-shrink: 0;
 }
 
 .eval-title {
