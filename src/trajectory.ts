@@ -7,35 +7,55 @@ import { Point } from './types';
 /**
  * Simplify a polyline using the Ramer–Douglas–Peucker algorithm.
  *
+ * Iterative in-place version using a boolean marker array and an
+ * explicit stack, avoiding the GC pressure from recursive slicing.
+ *
  * @param pts     Input point array (at least 2 points)
  * @param epsilon Distance threshold in CSS pixels (recommended: 0.5)
  * @returns       Simplified point array
  */
 export function rdpSimplify(pts: readonly Point[], epsilon: number): Point[] {
-  if (pts.length <= 2) return [...pts];
+  const n = pts.length;
+  if (n <= 2) return [...pts];
 
-  const first = pts[0];
-  const last = pts[pts.length - 1];
+  /* Mark which points to keep (first and last are always kept) */
+  const keep = new Array<boolean>(n).fill(false);
+  keep[0] = true;
+  keep[n - 1] = true;
 
-  // Find the point farthest from the baseline [first–last]
-  let maxDist = 0;
-  let maxIdx = 0;
-  for (let i = 1; i < pts.length - 1; i++) {
-    const d = perpendicularDist(pts[i], first, last);
-    if (d > maxDist) {
-      maxDist = d;
-      maxIdx = i;
+  /* Explicit stack of [startIdx, endIdx] segments to process */
+  const stack: Array<[number, number]> = [[0, n - 1]];
+
+  while (stack.length > 0) {
+    const [start, end] = stack.pop()!;
+    const a = pts[start];
+    const b = pts[end];
+
+    /* Find the farthest point in this span */
+    let maxDist = 0;
+    let maxIdx = -1;
+    for (let i = start + 1; i < end; i++) {
+      if (keep[i]) continue;
+      const d = perpendicularDist(pts[i], a, b);
+      if (d > maxDist) {
+        maxDist = d;
+        maxIdx = i;
+      }
+    }
+
+    if (maxIdx >= 0 && maxDist > epsilon) {
+      keep[maxIdx] = true;
+      stack.push([start, maxIdx]);
+      stack.push([maxIdx, end]);
     }
   }
 
-  if (maxDist > epsilon) {
-    const left = rdpSimplify(pts.slice(0, maxIdx + 1), epsilon);
-    const right = rdpSimplify(pts.slice(maxIdx), epsilon);
-    // Avoid duplicating the split point
-    return [...left.slice(0, -1), ...right];
+  /* Gather kept points (preserving input order) */
+  const result: Point[] = [];
+  for (let i = 0; i < n; i++) {
+    if (keep[i]) result.push(pts[i]);
   }
-
-  return [first, last];
+  return result;
 }
 
 /** Perpendicular distance of point p from line (a–b) */
