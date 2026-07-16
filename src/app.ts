@@ -957,7 +957,7 @@ export class MirrorTraceApp {
     let matchedLineIdx = -1;
     if (this.multiLineMode) {
       /* Multi-line mode: match stroke to nearest un-covered line */
-      matchedLineIdx = this.matchMultiLine();
+      matchedLineIdx = this.matchMultiLine(simplified);
       if (matchedLineIdx < 0) return; // no matching line found
       const matchedLine = this.multiLines[matchedLineIdx];
       /* Hell mode complex curve: use segment matching within the line */
@@ -1252,31 +1252,38 @@ export class MirrorTraceApp {
     this.saveToPersistentHistory(globalScore);
   }
 
-  /** Find the un-covered multi-line closest to the user's current stroke start/end */
-  private matchMultiLine(): number {
-    if (this.userRawPath.length < 2) return -1;
-    const startP = this.userRawPath[0];
-    const endP = this.userRawPath[this.userRawPath.length - 1];
+  /**
+   * Find the un-covered multi-line whose shape best matches the user's
+   * simplified stroke.  Uses the average nearest-point distance across
+   * all simplified points (not just start/end), so a stroke that traces
+   * part of a complex curve correctly prefers that curve over a simpler
+   * nearby line whose endpoints happen to be closer.
+   */
+  private matchMultiLine(simplified: readonly Point[]): number {
+    if (simplified.length < 2) return -1;
 
     let bestIdx = -1;
-    let bestDist = Infinity;
+    let bestAvgDist = Infinity;
 
     for (let li = 0; li < this.multiLines.length; li++) {
       if (this.multiLineCovered[li]) continue;
       const line = this.multiLines[li];
       if (line.length < 2) continue;
 
-      /* Find nearest index for start and end, sum distances */
-      let minStart = Infinity, minEnd = Infinity;
-      for (const p of line) {
-        const ds = Math.hypot(p.x - startP.x, p.y - startP.y);
-        const de = Math.hypot(p.x - endP.x, p.y - endP.y);
-        if (ds < minStart) minStart = ds;
-        if (de < minEnd) minEnd = de;
+      /* Average nearest-point distance from all simplified points to this line */
+      let totalDist = 0;
+      for (const pt of simplified) {
+        let minD = Infinity;
+        for (const lp of line) {
+          const d = Math.hypot(pt.x - lp.x, pt.y - lp.y);
+          if (d < minD) minD = d;
+        }
+        totalDist += minD;
       }
-      const combined = minStart + minEnd;
-      if (combined < bestDist) {
-        bestDist = combined;
+      const avgDist = totalDist / simplified.length;
+
+      if (avgDist < bestAvgDist) {
+        bestAvgDist = avgDist;
         bestIdx = li;
       }
     }
