@@ -1142,6 +1142,9 @@ class MirrorTraceApp {
       </div>
     `;
     this.fullEvalStatusEl.style.display = 'block';
+
+    /* Persist the global evaluation score to localStorage */
+    this.saveToPersistentHistory(globalScore);
   }
 
   /** Find the un-covered multi-line closest to the user's current stroke start/end */
