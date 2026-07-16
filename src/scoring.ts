@@ -90,7 +90,65 @@ export function computeScores(
 }
 
 /* ------------------------------------------------------------------ */
-/*  95% 豪斯多夫距离                                                   */
+/*  KD-Tree (2D) for nearest-neighbour search                         */
+/* ------------------------------------------------------------------ */
+
+interface KDNode {
+  p: Point;
+  axis: 0 | 1;
+  left: KDNode | null;
+  right: KDNode | null;
+}
+
+/** Build a KD-Tree from an array of points (clones the slice). */
+function buildKDTree(pts: readonly Point[]): KDNode | null {
+  if (pts.length === 0) return null;
+  return build(pts.slice(), 0); // clone so sorting doesn't mutate input
+}
+
+function build(pts: Point[], depth: number): KDNode | null {
+  if (pts.length === 0) return null;
+  const axis = (depth % 2) as 0 | 1;
+  pts.sort((a, b) => axis === 0 ? a.x - b.x : a.y - b.y);
+  const mid = Math.floor(pts.length / 2);
+  return {
+    p: pts[mid],
+    axis,
+    left: build(pts.slice(0, mid), depth + 1),
+    right: build(pts.slice(mid + 1), depth + 1),
+  };
+}
+
+/** Squared distance between two points (avoids sqrt during search). */
+function distSq(a: Point, b: Point): number {
+  const dx = a.x - b.x;
+  const dy = a.y - b.y;
+  return dx * dx + dy * dy;
+}
+
+/** Find the nearest point in the KD-Tree to `target`. */
+function nearest(node: KDNode | null, target: Point, best: { dSq: number; pt: Point }): void {
+  if (!node) return;
+
+  const d = distSq(target, node.p);
+  if (d < best.dSq) {
+    best.dSq = d;
+    best.pt = node.p;
+  }
+
+  const axis = node.axis;
+  const diff = axis === 0 ? target.x - node.p.x : target.y - node.p.y;
+  const first = diff <= 0 ? node.left : node.right;
+  const second = diff <= 0 ? node.right : node.left;
+
+  nearest(first, target, best);
+  if (diff * diff < best.dSq) {
+    nearest(second, target, best);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  95% 豪斯多夫距离（KD-Tree 加速）                                    */
 /* ------------------------------------------------------------------ */
 
 function hausdorff95(A: readonly Point[], B: readonly Point[]): number {
@@ -99,18 +157,17 @@ function hausdorff95(A: readonly Point[], B: readonly Point[]): number {
   return Math.max(dAB, dBA);
 }
 
-/** 单向 95%：点集 A 中每个点到 B 的最近距离，取 95% 分位 */
+/** 单向 95%：点集 A 中每个点到 B 的最近距离（KD-Tree 加速），取 95% 分位 */
 function directionalH95(A: readonly Point[], B: readonly Point[]): number {
   if (A.length === 0 || B.length === 0) return 0;
 
+  const tree = buildKDTree(B);
+
   const dists: number[] = [];
   for (const a of A) {
-    let best = Infinity;
-    for (const b of B) {
-      const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (d < best) best = d;
-    }
-    dists.push(best);
+    const best = { dSq: Infinity, pt: B[0] };
+    nearest(tree, a, best);
+    dists.push(Math.sqrt(best.dSq));
   }
 
   dists.sort((a, b) => a - b); // 升序
