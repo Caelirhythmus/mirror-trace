@@ -155,6 +155,51 @@ canvas {
   white-space: nowrap;
 }
 
+/* ─── Multi-line config panel ─── */
+
+#multi-config {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 0.4rem;
+  padding: 0.35rem 1rem;
+  background: #12122a;
+  border: 1px solid #2a2a4a;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.config-row label {
+  font-size: 0.75rem;
+  color: #707090;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.config-row input[type="number"] {
+  width: 3.5em;
+  padding: 1px 4px;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  background: #0f0f1a;
+  color: #c0c0e0;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.config-row input[type="number"]:focus {
+  outline: none;
+  border-color: #4a6a9a;
+}
+
 /* ─── Toggle switch ─── */
 
 .toggle-label {

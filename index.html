@@ -65,6 +65,20 @@
       </div>
     </div>
 
+    <div id="multi-config">
+      <div class="config-row">
+        <label class="toggle-label" title="单条/多条">
+          <input type="checkbox" id="toggle-multi" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">多条</span>
+        </label>
+      </div>
+      <div class="config-row" id="multi-params">
+        <label>直线 <input type="number" id="input-straight" value="2" min="0" max="20" /></label>
+        <label>总量 <input type="number" id="input-total" value="5" min="1" max="20" /></label>
+      </div>
+    </div>
+
     <div id="history-panel">
       <div id="history-header">
         <span id="history-label">历史记录</span>

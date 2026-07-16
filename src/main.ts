@@ -55,6 +55,8 @@ class MirrorTraceApp {
   private singleStrokeMode = false;
   /** true = multi-line mode (multiple lines stacked, only in single-stroke) */
   private multiLineMode = false;
+  private straightLineCount = 2;
+  private totalLineCount = 5;
 
   /* stroke history for undo / redo */
   private strokeHistory: StrokeState[] = [];
@@ -76,6 +78,8 @@ class MirrorTraceApp {
   private progressFillEl!: HTMLElement;
   private fullEvalStatusEl!: HTMLElement;
   private modeLabelEl!: HTMLElement;
+  private multiConfigEl!: HTMLElement;
+  private multiParamsEl!: HTMLElement;
 
   /* coverage tracking for overview mode */
   private covered: boolean[] = [];
@@ -135,6 +139,8 @@ class MirrorTraceApp {
     this.progressFillEl = document.getElementById('progress-fill')!;
     this.fullEvalStatusEl = document.getElementById('full-eval-status')!;
     this.modeLabelEl = document.getElementById('mode-label')!;
+    this.multiConfigEl = document.getElementById('multi-config')!;
+    this.multiParamsEl = document.getElementById('multi-params')!;
 
     /* Bind toggles */
     const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
@@ -154,6 +160,26 @@ class MirrorTraceApp {
       this.onModeChanged();
     });
 
+    /* Multi-line toggle (visible only in single-stroke mode) */
+    const multiToggle = document.getElementById('toggle-multi') as HTMLInputElement;
+    multiToggle.addEventListener('change', () => {
+      this.multiLineMode = multiToggle.checked;
+      this.updateConfigVisibility();
+      this.newCurve();
+    });
+
+    /* Multi-line numeric parameters */
+    const straightInput = document.getElementById('input-straight') as HTMLInputElement;
+    straightInput.addEventListener('change', () => {
+      this.straightLineCount = Math.max(0, Math.min(20, parseInt(straightInput.value) || 0));
+      if (this.multiLineMode) this.newCurve();
+    });
+    const totalInput = document.getElementById('input-total') as HTMLInputElement;
+    totalInput.addEventListener('change', () => {
+      this.totalLineCount = Math.max(1, Math.min(20, parseInt(totalInput.value) || 1));
+      if (this.multiLineMode) this.newCurve();
+    });
+
     /* Keyboard shortcuts */
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
@@ -168,6 +194,7 @@ class MirrorTraceApp {
     this.bindPointerEvents();
     /* Force initial measurement so we have cssW/cssH before generating */
     this.resizeCanvases();
+    this.updateConfigVisibility();
     this.newCurve();
   }
 
@@ -207,7 +234,7 @@ class MirrorTraceApp {
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
     if (this.singleStrokeMode && this.multiLineMode) {
-      const result = generateMultiLines(this.cssW, this.cssH, 5, 2, 40);
+      const result = generateMultiLines(this.cssW, this.cssH, this.totalLineCount, this.straightLineCount, 40);
       this.multiLines = result.lines;
       this.refPath = result.lines[0];
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
@@ -282,7 +309,15 @@ class MirrorTraceApp {
   /** Called when the user toggles between overview and single-stroke mode */
   private onModeChanged(): void {
     this.modeLabelEl.textContent = this.singleStrokeMode ? '单笔' : '概括';
+    this.updateConfigVisibility();
     this.newCurve();
+  }
+
+  /** Show/hide multi-line config based on current mode */
+  private updateConfigVisibility(): void {
+    const visible = this.singleStrokeMode;
+    this.multiConfigEl.style.display = visible ? 'flex' : 'none';
+    this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
   }
 
   /* ──────────────────────────────────────────────── */
