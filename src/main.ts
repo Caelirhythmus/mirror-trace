@@ -96,8 +96,8 @@ class MirrorTraceApp {
   /* latest segment match (for visual highlight on ref canvas) */
   private latestMatchStart = -1;
   private latestMatchEnd = -1;
-  /** Pen-position hotspot on ref canvas (-1 = none) */
-  private liveHotspotIdx = -1;
+  /** Pen-position hotspot position on ref canvas (null = none) */
+  private liveHotspotPt: Point | null = null;
 
   /* multi-line mode state */
   private multiLines: Point[][] = [];
@@ -306,7 +306,7 @@ class MirrorTraceApp {
     this.segmentRecords = [];
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
-    this.liveHotspotIdx = -1;
+    this.liveHotspotPt = null;
     this.multiLines = [];
     this.multiLineCovered = [];
     this.multiLineColors = [];
@@ -426,8 +426,8 @@ class MirrorTraceApp {
     }
 
     /* Pen-position hotspot crosshair */
-    if (this.liveHotspotIdx >= 0 && this.heatmapEnabled && this.refPath.length > this.liveHotspotIdx) {
-      const hp = this.refPath[this.liveHotspotIdx];
+    if (this.liveHotspotPt !== null && this.heatmapEnabled) {
+      const hp = this.liveHotspotPt;
       const s = 6;
       ctx.strokeStyle = 'rgba(255, 255, 100, 0.75)';
       ctx.lineWidth = 1.5;
@@ -443,7 +443,7 @@ class MirrorTraceApp {
     this.userRawPath = [];
     this.userProcessedPath = [];
     this.prevPoint = { x: 0, y: 0 };
-    this.liveHotspotIdx = -1;
+    this.liveHotspotPt = null;
   }
 
   /**
@@ -523,12 +523,31 @@ class MirrorTraceApp {
 
   /** Draw the full reference curve very faintly as a static guide on the user canvas */
   private drawHeatmapGuide(): void {
-    if (!this.heatmapEnabled || this.refPath.length < 2) return;
+    if (!this.heatmapEnabled) return;
     const ctx = this.userCtx;
-    ctx.strokeStyle = 'rgba(74, 158, 255, 0.10)';
-    ctx.lineWidth = 2;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    if (this.multiLineMode && this.multiLines.length > 0) {
+      /* Multi-line: draw all uncovered lines faintly as guide */
+      ctx.lineWidth = 1.5;
+      for (const line of this.multiLines) {
+        if (line.length < 2) continue;
+        ctx.strokeStyle = 'rgba(74, 158, 255, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(line[0].x, line[0].y);
+        for (let i = 1; i < line.length; i++) {
+          ctx.lineTo(line[i].x, line[i].y);
+        }
+        ctx.stroke();
+      }
+      return;
+    }
+
+    /* Single-stroke / overview mode */
+    if (this.refPath.length < 2) return;
+    ctx.strokeStyle = 'rgba(74, 158, 255, 0.10)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(this.refPath[0].x, this.refPath[0].y);
     for (let i = 1; i < this.refPath.length; i++) {
@@ -551,31 +570,45 @@ class MirrorTraceApp {
   /** Update live pen-position hotspot on the reference canvas */
   private updateLiveHotspot(penPos: Point): void {
     if (!this.heatmapEnabled) {
-      if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
+      if (this.liveHotspotPt !== null) { this.liveHotspotPt = null; this.drawRefCanvas(); }
       return;
     }
 
-    let bestIdx = -1;
+    let bestPt: Point | null = null;
     let bestDist = Infinity;
 
     if (this.multiLineMode) {
-      /* Multi-line: no visual hotspot on ref canvas (all lines shown) */
-      if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
-      return;
+      /* Multi-line: find nearest point on any uncovered line */
+      for (let li = 0; li < this.multiLines.length; li++) {
+        if (this.multiLineCovered[li]) continue;
+        const line = this.multiLines[li];
+        if (line.length < 2) continue;
+        for (let i = 0; i < line.length; i++) {
+          const d = Math.hypot(line[i].x - penPos.x, line[i].y - penPos.y);
+          if (d < bestDist) { bestDist = d; bestPt = line[i]; }
+        }
+      }
     } else {
       /* Single-stroke / overview mode */
       if (this.refPath.length < 2) {
-        if (this.liveHotspotIdx >= 0) { this.liveHotspotIdx = -1; this.drawRefCanvas(); }
+        if (this.liveHotspotPt !== null) { this.liveHotspotPt = null; this.drawRefCanvas(); }
         return;
       }
       for (let i = 0; i < this.refPath.length; i++) {
         const d = Math.hypot(this.refPath[i].x - penPos.x, this.refPath[i].y - penPos.y);
-        if (d < bestDist) { bestDist = d; bestIdx = i; }
+        if (d < bestDist) { bestDist = d; bestPt = this.refPath[i]; }
       }
     }
 
-    if (bestIdx !== this.liveHotspotIdx) {
-      this.liveHotspotIdx = bestIdx;
+    /* Only redraw if the position actually changed */
+    const changed = bestPt === null
+      ? this.liveHotspotPt !== null
+      : this.liveHotspotPt === null ||
+        bestPt.x !== this.liveHotspotPt.x ||
+        bestPt.y !== this.liveHotspotPt.y;
+
+    if (changed) {
+      this.liveHotspotPt = bestPt;
       this.drawRefCanvas();
     }
   }
@@ -613,15 +646,15 @@ class MirrorTraceApp {
     this.clearScoreDisplay();
 
     /* Clear latest-match highlight and hotspot on ref canvas */
-    if (this.latestMatchStart >= 0 || this.liveHotspotIdx >= 0) {
+    if (this.latestMatchStart >= 0 || this.liveHotspotPt !== null) {
       this.latestMatchStart = -1;
       this.latestMatchEnd = -1;
-      this.liveHotspotIdx = -1;
+      this.liveHotspotPt = null;
       this.drawRefCanvas();
     }
 
-    /* Draw heatmap guide as background layer (only in single-stroke non-multi mode) */
-    if (this.singleStrokeMode && !this.multiLineMode) {
+    /* Draw heatmap guide as background layer */
+    if (this.singleStrokeMode || this.multiLineMode) {
       this.drawHeatmapGuide();
     }
 
@@ -670,9 +703,7 @@ class MirrorTraceApp {
     if (this.userRawPath.length < 3) return;
     if (this.refPath.length < 2) return;
 
-    /* Truncate any undone states: new stroke discards redo future */
-    this.strokeHistory.length = this.historyPointer + 1;
-
+    /* strokeHistory was already truncated in onPointerDown */
     const rdpEpsilon = 0.5; // CSS pixels
     const simplified = rdpSimplify(this.userRawPath, rdpEpsilon);
 
@@ -804,10 +835,11 @@ class MirrorTraceApp {
       } else if (!this.singleStrokeMode) {
         this.covered = new Array(this.refPath.length).fill(false);
       }
+      this.globalStartTime = 0;
       this.coveragePct = 0;
       this.updateCoverageUI();
       this.drawRefCanvas();
-      if (this.singleStrokeMode && !this.multiLineMode) {
+      if (this.singleStrokeMode || this.multiLineMode) {
         this.drawHeatmapGuide();
       }
     }
@@ -866,6 +898,7 @@ class MirrorTraceApp {
 
     /* Multi-line mode — each stroke covers one sub-line */
     if (this.multiLineMode) {
+      this.drawHeatmapGuide();
       for (let i = 0; i <= index; i++) {
         const s = this.strokeHistory[i];
         this.replayRawStroke(s);
