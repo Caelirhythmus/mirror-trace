@@ -24,7 +24,7 @@ function refLine(n: number): Point[] {
 describe('computeScores', () => {
   it('returns 100 for identical paths drawn at ideal speed', () => {
     const path = refLine(150);
-    const idealMs = 290 / 80 * 1000; // 3625 ms
+    const idealMs = 290 / 160 * 1000; // ≈ 1812 ms
     const result = computeScores(path, path, idealMs);
 
     expect(result.hausdorff95Dist).toBeCloseTo(0, 1);
@@ -43,9 +43,9 @@ describe('computeScores', () => {
       const t = i / (ref.length - 1);
       return p(pt.x, pt.y + Math.sin(t * Math.PI * 4) * 15);
     });
-    const idealMs = 290 / 80 * 1000;
+    const elapsed = 290 / 160 * 1000;
 
-    const result = computeScores(ref, user, idealMs);
+    const result = computeScores(ref, user, elapsed);
     expect(result.spatialScore).toBeLessThan(100);
     expect(result.rmsDist).toBeGreaterThan(0);
     expect(result.hausdorff95Dist).toBeGreaterThan(0);
@@ -59,17 +59,17 @@ describe('computeScores', () => {
 
   it('reduces time score when slower than ideal', () => {
     const path = refLine(150);
-    const idealMs = 290 / 80 * 1000; // ≈ 3625 ms
-    const result = computeScores(path, path, idealMs * 2); // 2x slower
+    const elapsed = 290 / 160 * 1000; // ≈ 1812 ms
+    const result = computeScores(path, path, elapsed * 2); // 2x slower
     expect(result.timeScore).toBeLessThan(100);
     expect(result.timeScore).toBeGreaterThan(0);
   });
 
   it('exponentially decays time score (more penalty for slightly over)', () => {
     const path = refLine(150);
-    const idealMs = 290 / 80 * 1000;
-    const slightlyOver = computeScores(path, path, idealMs * 1.2);
-    const wayOver = computeScores(path, path, idealMs * 3);
+    const elapsed = 290 / 160 * 1000;
+    const slightlyOver = computeScores(path, path, elapsed * 1.2);
+    const wayOver = computeScores(path, path, elapsed * 3);
 
     // Slightly over should still lose significant points
     expect(slightlyOver.timeScore).toBeLessThan(90);
@@ -81,9 +81,9 @@ describe('computeScores', () => {
   it('final score weights spatial 65% and time 35%', () => {
     const ref = refLine(150);
     const shifted = ref.map(pt => p(pt.x + 20, pt.y));
-    const idealMs = 290 / 80 * 1000;
+    const elapsed = 290 / 160 * 1000;
 
-    const result = computeScores(ref, shifted, idealMs);
+    const result = computeScores(ref, shifted, elapsed);
     const expectedSpatial = result.spatialScore * 0.65 + result.timeScore * 0.35;
     expect(result.finalScore).toBeCloseTo(expectedSpatial, 1);
   });

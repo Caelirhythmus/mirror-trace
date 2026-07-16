@@ -12,6 +12,10 @@ export interface HistoryEntry {
   idealMs: number;
   hausdorff95Dist: number;
   rmsDist: number;
+  /** Mode label: 概括 | 单笔 | 多条 | 地狱 */
+  mode?: string;
+  /** Human-readable line configuration, e.g. "2+3" or "2+2+1" */
+  lineConfig?: string;
 }
 
 const STORAGE_KEY = 'mirror-trace-history';

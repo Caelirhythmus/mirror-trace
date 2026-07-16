@@ -36,7 +36,7 @@ export interface ScoreResult {
 /*  Tunable parameters                                                 */
 /* ------------------------------------------------------------------ */
 
-const V_IDEAL = 80; // px/s — 最佳临摹速度
+const V_IDEAL = 160; // px/s — 最佳临摹速度（调高一倍增加挑战性）
 
 // 距离→分数映射：线性下降至 D_MAX 时归零
 const HAUSDORFF_D_MAX = 60; // px

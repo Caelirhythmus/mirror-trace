@@ -1,8 +1,8 @@
 /**
  * History panel rendering for MirrorTraceApp
  *
- * Pure functions extracted from main.ts for rendering the history chart
- * (sparkline) and the history list.
+ * Pure functions for rendering the history chart (sparkline with Y-axis
+ * labels and top-score markers) and the history list with mode badges.
  */
 
 import { HistoryEntry } from './storage';
@@ -13,7 +13,10 @@ import { HistoryEntry } from './storage';
 
 /**
  * Draw a sparkline of recent final scores on the history chart canvas.
- * Matches the original rendering in main.ts exactly.
+ *
+ * Features:
+ * - Y-axis labels (min / mid / max of visible data range)
+ * - Top-score highlight marker
  */
 export function renderHistoryChart(
   canvas: HTMLCanvasElement,
@@ -33,7 +36,7 @@ export function renderHistoryChart(
     ctx.fillStyle = '#404060';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('\u6682\u65E0\u6570\u636E', w / 2, h / 2 + 4);
+    ctx.fillText('暂无数据', w / 2, h / 2 + 4);
     return;
   }
 
@@ -43,19 +46,37 @@ export function renderHistoryChart(
   const minS = Math.min(...scores);
   const maxS = Math.max(...scores);
   const range = Math.max(maxS - minS, 10);
-  const padL = 4, padR = 4, padT = 6, padB = 10;
+
+  /* ── Layout ── */
+
+  const padL = 26;               // room for Y-axis labels
+  const padR = 4;
+  const padT = 6;
+  const padB = 10;
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  /* Grid lines */
+  /* ── Y-axis labels + grid lines ── */
+
+  const labelPositions = [minS, Math.round((minS + maxS) / 2), maxS];
+
   ctx.strokeStyle = '#1a1a3a';
   ctx.lineWidth = 1;
-  for (let v = 0; v <= 100; v += 25) {
+  ctx.font = '9px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+
+  for (const v of labelPositions) {
     const y = padT + plotH * (1 - (v - minS) / range);
+    /* Grid line */
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
+    /* Label */
+    ctx.fillStyle = '#505068';
+    ctx.fillText(String(v), padL - 3, y);
   }
 
-  /* Area fill */
+  /* ── Area fill ── */
+
   ctx.beginPath();
   ctx.moveTo(padL, padT + plotH);
   scores.forEach((s, i) => {
@@ -71,7 +92,8 @@ export function renderHistoryChart(
   ctx.fillStyle = grad;
   ctx.fill();
 
-  /* Line */
+  /* ── Line ── */
+
   ctx.beginPath();
   scores.forEach((s, i) => {
     const x = padL + (i / (scores.length - 1)) * plotW;
@@ -82,13 +104,31 @@ export function renderHistoryChart(
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  /* Dots */
+  /* ── Regular dots ── */
+
+  ctx.fillStyle = '#4a9eff';
   scores.forEach((s, i) => {
     const x = padL + (i / (scores.length - 1)) * plotW;
     const y = padT + plotH * (1 - (s - minS) / range);
-    ctx.fillStyle = '#4a9eff';
     ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI * 2); ctx.fill();
   });
+
+  /* ── Top-score marker ── */
+
+  const maxIdx = scores.indexOf(maxS);
+  const maxX = padL + (maxIdx / (scores.length - 1)) * plotW;
+  const maxY = padT + plotH * (1 - (maxS - minS) / range);
+
+  /* Brighter, bigger dot */
+  ctx.fillStyle = '#ffd700';
+  ctx.beginPath(); ctx.arc(maxX, maxY, 4, 0, Math.PI * 2); ctx.fill();
+
+  /* Value label above the dot */
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(String(maxS), maxX, maxY - 5);
 }
 
 /* ------------------------------------------------------------------ */
@@ -97,6 +137,7 @@ export function renderHistoryChart(
 
 /**
  * Render a compact list of the last N history entries as innerHTML.
+ * Each entry shows: [mode badge]  time  finalScore  [details]
  */
 export function renderHistoryList(
   el: HTMLElement,
@@ -108,7 +149,19 @@ export function renderHistoryList(
     .map(e => {
       const d = new Date(e.timestamp);
       const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return `<span class="history-entry">${time}  ${e.finalScore}</span>`;
+      let badge = '[?]';
+      if (e.mode === '概括') badge = '[概]';
+      else if (e.mode === '单笔') badge = '[单]';
+      else if (e.mode === '多条') badge = '[多]';
+      else if (e.mode === '地狱') badge = '[地]';
+
+      let detail = '';
+      if (e.lineConfig) {
+        detail = `  ${e.lineConfig}`;
+      }
+      detail += `  ${e.elapsedMs}ms`;
+
+      return `<span class="history-entry">${badge} ${time}  ${e.finalScore}${detail}</span>`;
     })
     .join('');
 }

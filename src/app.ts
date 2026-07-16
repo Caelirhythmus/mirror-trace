@@ -1157,6 +1157,18 @@ export class MirrorTraceApp {
 
   /** Save a ScoreResult to localStorage and refresh the history UI */
   private saveToPersistentHistory(score: ScoreResult): void {
+    let mode: string, lineConfig: string | undefined;
+    if (this.hellMode) {
+      mode = '地狱';
+      lineConfig = `${this.hellStraightCount}+${this.hellArchCount}+${this.hellComplexCount}`;
+    } else if (this.multiLineMode) {
+      mode = '多条';
+      lineConfig = `${this.straightLineCount}+${this.totalLineCount - this.straightLineCount}`;
+    } else if (this.singleStrokeMode) {
+      mode = '单笔';
+    } else {
+      mode = '概括';
+    }
     const entry: HistoryEntry = {
       id: makeId(),
       timestamp: Date.now(),
@@ -1167,6 +1179,8 @@ export class MirrorTraceApp {
       idealMs: score.idealMs,
       hausdorff95Dist: score.hausdorff95Dist,
       rmsDist: score.rmsDist,
+      mode,
+      lineConfig,
     };
     saveEntry(entry);
     this.refreshHistoryPanel();
