@@ -1,0 +1,18 @@
+{
+  "name": "003-mirror-trace",
+  "version": "0.1.0",
+  "description": "Mirror Trace — a path-copying drawing tool with similarity scoring",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": ["canvas", "drawing", "mirror-trace", "path-matching"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vite": "^8.1.4"
+  }
+}

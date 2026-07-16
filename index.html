@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mirror Trace — 路径临摹</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>Mirror Trace</h1>
+    <div id="canvas-container">
+      <div class="canvas-wrapper">
+        <h2>参考线条</h2>
+        <canvas id="ref-canvas"></canvas>
+      </div>
+      <div class="canvas-wrapper">
+        <h2>你的临摹</h2>
+        <canvas id="user-canvas"></canvas>
+      </div>
+    </div>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,60 @@
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 1rem;
+  height: 100vh;
+}
+
+h1 {
+  font-size: 1.5rem;
+  font-weight: 300;
+  letter-spacing: 0.05em;
+  margin-bottom: 1rem;
+  color: #a0a0c0;
+}
+
+#canvas-container {
+  display: flex;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 1200px;
+}
+
+.canvas-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.canvas-wrapper h2 {
+  font-size: 0.875rem;
+  font-weight: 400;
+  margin-bottom: 0.5rem;
+  color: #8080a0;
+}
+
+canvas {
+  flex: 1;
+  width: 100%;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #0f0f1a;
+  touch-action: none;  /* prevent scroll/zoom on touch devices */
+}
