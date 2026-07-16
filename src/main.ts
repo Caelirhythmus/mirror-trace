@@ -68,6 +68,8 @@ class MirrorTraceApp {
   private multiLineMode = false;
   private straightLineCount = 2;
   private totalLineCount = 5;
+  /** Number of cubic-Bézier segments for overview-mode complex curve */
+  private complexSegments = 3;
 
   /* stroke history for undo / redo */
   private strokeHistory: StrokeState[] = [];
@@ -91,6 +93,8 @@ class MirrorTraceApp {
   private modeLabelEl!: HTMLElement;
   private multiConfigEl!: HTMLElement;
   private multiParamsEl!: HTMLElement;
+  private complexParamsEl!: HTMLElement;
+  private segmentsInputEl!: HTMLInputElement;
 
   /* coverage tracking for overview mode */
   private covered: boolean[] = [];
@@ -154,6 +158,8 @@ class MirrorTraceApp {
     this.modeLabelEl = document.getElementById('mode-label')!;
     this.multiConfigEl = document.getElementById('multi-config')!;
     this.multiParamsEl = document.getElementById('multi-params')!;
+    this.complexParamsEl = document.getElementById('complex-params')!;
+    this.segmentsInputEl = document.getElementById('input-segments') as HTMLInputElement;
 
     /* Bind toggles */
     const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
@@ -191,6 +197,12 @@ class MirrorTraceApp {
     totalInput.addEventListener('change', () => {
       this.totalLineCount = Math.max(1, Math.min(20, parseInt(totalInput.value) || 1));
       if (this.multiLineMode) this.newCurve();
+    });
+
+    /* Complex segment count (overview mode) */
+    this.segmentsInputEl.addEventListener('change', () => {
+      this.complexSegments = Math.max(1, Math.min(12, parseInt(this.segmentsInputEl.value) || 1));
+      if (!this.singleStrokeMode) this.newCurve();
     });
 
     /* Keyboard shortcuts */
@@ -376,7 +388,7 @@ class MirrorTraceApp {
       this.multiLineColors = [];
       this.refPath = this.singleStrokeMode
         ? generateRotatedArch(VIRTUAL_W, VIRTUAL_H, 40)
-        : generateRandomCurve(VIRTUAL_W, VIRTUAL_H, 40);
+        : generateRandomCurve(VIRTUAL_W, VIRTUAL_H, 40, this.complexSegments);
       this.covered = new Array(this.refPath.length).fill(false);
       this.coveragePct = 0;
       this.fullEvalReady = false;
@@ -453,7 +465,16 @@ class MirrorTraceApp {
   /** Show/hide multi-line config based on current mode */
   private updateConfigVisibility(): void {
     this.multiConfigEl.style.display = 'flex';
-    this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
+    if (this.singleStrokeMode) {
+      document.getElementById('multi-toggle-row')!.style.display = 'flex';
+      this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
+      this.complexParamsEl.style.display = 'none';
+    } else {
+      /* Overview mode: show complex-segment config instead of multi-line toggle */
+      document.getElementById('multi-toggle-row')!.style.display = 'none';
+      this.multiParamsEl.style.display = 'none';
+      this.complexParamsEl.style.display = 'flex';
+    }
   }
 
   /* ──────────────────────────────────────────────── */

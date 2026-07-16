@@ -57,10 +57,11 @@ export function generateRandomCurve(
   w: number,
   h: number,
   margin = 40,
+  numSegments?: number,
 ): Point[] {
   /* --- 1. pick anchor count (2–4 segments → 3–5 anchors) --- */
-  const numSegments = randInt(2, 4);
-  const numAnchors = numSegments + 1;
+  const segments = numSegments ?? randInt(2, 4);
+  const numAnchors = segments + 1;
 
   /* --- 2. generate x-monotonic anchors --- */
   const anchors: Point[] = [];
@@ -78,7 +79,7 @@ export function generateRandomCurve(
   /* --- 3. build C¹-continuous segments --- */
   const segs: BezierSeg[] = [];
 
-  for (let i = 0; i < numSegments; i++) {
+  for (let i = 0; i < segments; i++) {
     const p0 = anchors[i];
     const p3 = anchors[i + 1];
     const dx = p3.x - p0.x;

@@ -53,6 +53,14 @@ describe('generateRandomCurve', () => {
     // At least 75% of consecutive points should have non-decreasing x
     expect(increasingCount / (pts.length - 1)).toBeGreaterThan(0.75);
   });
+
+  it('respects the numSegments parameter', () => {
+    // A 1-segment curve is just one cubic bezier → very few points
+    // A 10-segment curve should have many more points
+    const few = generateRandomCurve(500, 400, 40, 1);
+    const many = generateRandomCurve(500, 400, 40, 10);
+    expect(many.length).toBeGreaterThan(few.length);
+  });
 });
 
 /* ------------------------------------------------------------------ */
