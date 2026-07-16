@@ -246,7 +246,90 @@ class MirrorTraceApp {
     this.userCanvas.height = Math.round(rectU.height) * this.dpr;
     this.userCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
+    /* Redraw ref canvas */
     this.drawScene();
+
+    /* Redraw user canvas content lost due to buffer resize */
+    this.redrawUserCanvasContent();
+  }
+
+  /**
+   * Redraw the user canvas from stored stroke data after a buffer resize
+   * that would otherwise leave it blank.  Handles both completed strokes
+   * (strokeHistory) and the in-progress partial stroke (userRawPath).
+   */
+  private redrawUserCanvasContent(): void {
+    const ctx = this.userCtx;
+
+    /* Heatmap guide background */
+    if (this.singleStrokeMode || this.multiLineMode) {
+      this.drawHeatmapGuide();
+    }
+
+    /* ── Completed strokes from history ── */
+
+    if (this.historyPointer >= 0) {
+      if (this.singleStrokeMode && !this.multiLineMode) {
+        /* Single-stroke: only the last (current) completed stroke */
+        const state = this.strokeHistory[this.historyPointer];
+        if (state) {
+          this.replayRawStroke(state);
+          this.userProcessedPath = [...state.processed];
+          if (state.processed.length >= 2) this.drawUserProcessed();
+        }
+      } else if (this.multiLineMode) {
+        /* Multi-line: replay all strokes, restore coverage */
+        this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+        for (let i = 0; i <= this.historyPointer; i++) {
+          const s = this.strokeHistory[i];
+          this.replayRawStroke(s);
+          if (s.matchedLineIdx >= 0 && s.matchedLineIdx < this.multiLineCovered.length) {
+            this.multiLineCovered[s.matchedLineIdx] = true;
+          }
+        }
+        this.coveragePct = Math.round(
+          (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
+        );
+        this.updateCoverageUI();
+        this.drawRefCanvas();
+      } else {
+        /* Overview: replay all strokes, restore coverage */
+        this.covered = new Array(this.refPath.length).fill(false);
+        for (let i = 0; i <= this.historyPointer; i++) {
+          const s = this.strokeHistory[i];
+          this.replayRawStroke(s);
+          if (s.raw.length >= 2 && this.refPath.length >= 2) {
+            const match = findSegment(this.refPath, s.raw);
+            for (let j = match.startIdx; j <= match.endIdx; j++) {
+              this.covered[j] = true;
+            }
+          }
+        }
+        this.coveragePct = Math.round(
+          (this.covered.filter(v => v).length / this.refPath.length) * 100,
+        );
+        this.updateCoverageUI();
+        this.drawRefCanvas();
+      }
+
+      /* Restore score display */
+      const state = this.strokeHistory[this.historyPointer];
+      state.score ? this.showScore(state.score) : this.clearScoreDisplay();
+    }
+
+    /* ── In-progress partial stroke (if currently drawing) ── */
+    if (this.isDrawing && this.userRawPath.length >= 2) {
+      ctx.strokeStyle = '#ff6b6b';
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(this.userRawPath[0].x, this.userRawPath[0].y);
+      for (let i = 1; i < this.userRawPath.length; i++) {
+        ctx.lineTo(this.userRawPath[i].x, this.userRawPath[i].y);
+      }
+      ctx.stroke();
+    }
   }
 
   /* ──────────────────────────────────────────────── */
