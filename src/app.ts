@@ -814,7 +814,10 @@ export class MirrorTraceApp {
       const segCov = this.complexLineCoverage[li];
       if (segCov) {
         totalWeight += segCov.length;
-        coveredWeight += segCov.filter(c => c).length;
+        const covered = segCov.filter(c => c).length;
+        coveredWeight += covered;
+        /* Mark line as fully covered when ALL segments are done */
+        if (covered >= segCov.length) this.multiLineCovered[li] = true;
       } else {
         totalWeight += 1;
         coveredWeight += this.multiLineCovered[li] ? 1 : 0;
