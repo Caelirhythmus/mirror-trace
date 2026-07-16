@@ -111,6 +111,19 @@ canvas {
   margin-left: auto;
 }
 
+/* ─── Coverage info ─── */
+
+.coverage-info {
+  font-size: 0.75rem;
+  color: #707090;
+  white-space: nowrap;
+}
+
+#coverage-pct {
+  color: #a0d0ff;
+  font-weight: 500;
+}
+
 /* ─── Toggle switch ─── */
 
 .toggle-label {
@@ -264,4 +277,20 @@ canvas {
 
 .history-entry {
   white-space: nowrap;
+}
+
+/* ─── Full evaluation status ─── */
+
+#full-eval-status {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 0.3rem;
+  padding: 0.3rem 1rem;
+  border-radius: 4px;
+  background: #1a2a1a;
+  border: 1px solid #2a4a2a;
+  color: #80d080;
+  font-size: 0.8rem;
+  text-align: center;
+  display: none;
 }

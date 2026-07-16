@@ -65,6 +65,13 @@ class MirrorTraceApp {
   private redoBtnEl!: HTMLButtonElement;
   private historyChartEl!: HTMLCanvasElement;
   private historyListEl!: HTMLElement;
+  private coverageEl!: HTMLElement;
+  private fullEvalStatusEl!: HTMLElement;
+
+  /* coverage tracking for overview mode */
+  private covered: boolean[] = [];
+  private coveragePct = 0;
+  private fullEvalReady = false;
 
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
@@ -95,6 +102,9 @@ class MirrorTraceApp {
     document.getElementById('btn-clear-history')!
       .addEventListener('click', () => { clearHistory(); this.refreshHistoryPanel(); });
     this.refreshHistoryPanel();
+
+    this.coverageEl = document.getElementById('coverage-pct')!;
+    this.fullEvalStatusEl = document.getElementById('full-eval-status')!;
 
     /* Bind toggles */
     const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
@@ -156,9 +166,20 @@ class MirrorTraceApp {
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
     this.refPath = generateRandomCurve(this.cssW, this.cssH, 40);
+    this.resetCoverage();
     this.clearUserCanvas();
     this.clearScoreDisplay();
     this.drawScene();
+  }
+
+  /** Reset coverage tracking and re-render ref canvas */
+  private resetCoverage(): void {
+    this.covered = new Array(this.refPath.length).fill(false);
+    this.coveragePct = 0;
+    this.fullEvalReady = false;
+    this.fullEvalStatusEl.style.display = 'none';
+    this.fullEvalStatusEl.textContent = '';
+    this.updateCoverageUI();
   }
 
   /* ──────────────────────────────────────────────── */
@@ -169,23 +190,67 @@ class MirrorTraceApp {
     this.drawRefCanvas();
   }
 
+  /** Draw a contiguous range of refPath indices with the given style */
+  private drawRefRange(
+    ctx: CanvasRenderingContext2D,
+    start: number,
+    end: number,
+    style: string,
+    width: number,
+  ): void {
+    ctx.strokeStyle = style;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
+    for (let i = start + 1; i <= end; i++) {
+      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    }
+    ctx.stroke();
+  }
+
+  /** Draw all contiguous ranges where predicate(i) is true */
+  private drawRanges(
+    ctx: CanvasRenderingContext2D,
+    style: string,
+    width: number,
+    predicate: (i: number) => boolean,
+  ): void {
+    let i = 0;
+    while (i < this.refPath.length) {
+      if (predicate(i)) {
+        let j = i;
+        while (j < this.refPath.length && predicate(j)) j++;
+        this.drawRefRange(ctx, i, j - 1, style, width);
+        i = j;
+      } else {
+        i++;
+      }
+    }
+  }
+
   private drawRefCanvas(): void {
     const ctx = this.refCtx;
     ctx.clearRect(0, 0, this.cssW, this.cssH);
 
     if (this.refPath.length < 2) return;
 
-    ctx.strokeStyle = '#4a9eff';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const hasCoverage =
+      this.covered.length === this.refPath.length &&
+      this.covered.some(v => v);
 
-    ctx.beginPath();
-    ctx.moveTo(this.refPath[0].x, this.refPath[0].y);
-    for (let i = 1; i < this.refPath.length; i++) {
-      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    if (!hasCoverage) {
+      /* No coverage — draw full path in normal blue */
+      this.drawRefRange(ctx, 0, this.refPath.length - 1, '#4a9eff', 2);
+      return;
     }
-    ctx.stroke();
+
+    /* Uncovered portions: dimmed */
+    this.drawRanges(ctx, 'rgba(74, 158, 255, 0.20)', 2, i => !this.covered[i]);
+
+    /* Covered portions: bright blue, slightly thicker */
+    this.drawRanges(ctx, '#4a9eff', 2.5, i => this.covered[i]);
   }
 
   private clearUserCanvas(): void {
@@ -284,6 +349,13 @@ class MirrorTraceApp {
       ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
     }
     ctx.stroke();
+  }
+
+  /** Update coverage percentage display in UI */
+  private updateCoverageUI(): void {
+    if (!this.singleStrokeMode) {
+      this.coverageEl.textContent = `${this.coveragePct}%`;
+    }
   }
 
   /** Draw a glowing hotspot on the reference curve near the pen position */
@@ -413,6 +485,25 @@ class MirrorTraceApp {
       /* Overview mode: match user stroke start/end to refPath segment */
       const match = findSegment(this.refPath, this.userRawPath);
       refSubPath = match.subPath;
+
+      /* Mark covered indices on refPath */
+      for (let i = match.startIdx; i <= match.endIdx; i++) {
+        this.covered[i] = true;
+      }
+      this.coveragePct = Math.round(
+        (this.covered.filter(v => v).length / this.refPath.length) * 100,
+      );
+      this.updateCoverageUI();
+
+      /* Check for full-evaluation threshold */
+      if (this.coveragePct >= 97 && !this.fullEvalReady) {
+        this.fullEvalReady = true;
+        this.fullEvalStatusEl.textContent = `完整临摹 ${this.coveragePct}% — 查看全图评价`;
+        this.fullEvalStatusEl.style.display = 'block';
+      }
+
+      /* Redraw ref canvas to show updated coverage */
+      this.drawRefCanvas();
     }
 
     const resampled = resampleToCount(simplified, refSubPath.length);

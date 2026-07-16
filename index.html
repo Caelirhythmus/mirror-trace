@@ -29,6 +29,9 @@
         <span>空间 <strong id="score-spatial">—</strong></span>
         <span>时间 <strong id="score-time">—</strong></span>
       </div>
+      <div class="coverage-info">
+        覆盖进度：<span id="coverage-pct">0%</span>
+      </div>
       <div class="score-debug">
         Hausdorff95: <span id="debug-hausdorff">—</span> px &nbsp;|&nbsp;
         RMS: <span id="debug-rms">—</span> px &nbsp;|&nbsp;
@@ -58,6 +61,8 @@
       <canvas id="history-chart"></canvas>
       <div id="history-list"></div>
     </div>
+
+    <div id="full-eval-status"></div>
   </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
