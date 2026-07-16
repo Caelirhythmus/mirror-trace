@@ -7,11 +7,16 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve, generateRandomArchCurve } from './generator';
+import { generateRandomCurve, generateRandomArchCurve, generateMultiLines } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
 import { saveEntry, loadHistory, clearHistory, makeId, HistoryEntry } from './storage';
+
+const ML_COLORS = [
+  '#ff6b6b', '#4a9eff', '#50c878', '#ffd700',
+  '#ff8c00', '#da70d6', '#00ced1', '#f08080',
+];
 
 /* ------------------------------------------------------------------ */
 /*  Stroke history model                                               */
@@ -48,6 +53,8 @@ class MirrorTraceApp {
   private heatmapEnabled = true;
   /** false = overview mode (multi-stroke, segment matching) */
   private singleStrokeMode = false;
+  /** true = multi-line mode (multiple lines stacked, only in single-stroke) */
+  private multiLineMode = false;
 
   /* stroke history for undo / redo */
   private strokeHistory: StrokeState[] = [];
@@ -83,6 +90,11 @@ class MirrorTraceApp {
   /* latest segment match (for visual highlight on ref canvas) */
   private latestMatchStart = -1;
   private latestMatchEnd = -1;
+
+  /* multi-line mode state */
+  private multiLines: Point[][] = [];
+  private multiLineCovered: boolean[] = [];
+  private multiLineColors: string[] = [];
 
   /* ──────────────────────────────────────────────── */
   /*  Lifecycle                                       */
@@ -194,10 +206,33 @@ class MirrorTraceApp {
   /** Generate a fresh reference curve and reset everything */
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
-    this.refPath = this.singleStrokeMode
-      ? generateRandomArchCurve(this.cssW, this.cssH, 40)
-      : generateRandomCurve(this.cssW, this.cssH, 40);
-    this.resetCoverage();
+    if (this.singleStrokeMode && this.multiLineMode) {
+      const result = generateMultiLines(this.cssW, this.cssH, 5, 2, 40);
+      this.multiLines = result.lines;
+      this.refPath = result.lines[0];
+      this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+      this.multiLineColors = this.multiLines.map((_, i) => ML_COLORS[i % ML_COLORS.length]);
+      this.coveragePct = 0;
+      this.fullEvalReady = false;
+    } else {
+      this.multiLines = [];
+      this.multiLineCovered = [];
+      this.multiLineColors = [];
+      this.refPath = this.singleStrokeMode
+        ? generateRandomArchCurve(this.cssW, this.cssH, 40)
+        : generateRandomCurve(this.cssW, this.cssH, 40);
+      this.covered = new Array(this.refPath.length).fill(false);
+      this.coveragePct = 0;
+      this.fullEvalReady = false;
+    }
+    this.allRawPaths = [];
+    this.globalStartTime = 0;
+    this.segmentRecords = [];
+    this.latestMatchStart = -1;
+    this.latestMatchEnd = -1;
+    this.fullEvalStatusEl.style.display = 'none';
+    this.fullEvalStatusEl.textContent = '';
+    this.updateCoverageUI();
     this.clearUserCanvas();
     this.clearScoreDisplay();
     this.drawScene();
@@ -208,7 +243,19 @@ class MirrorTraceApp {
    * Useful when the user wants to retry the current curve.
    */
   redraw(): void {
-    this.resetCoverage();
+    if (this.multiLineMode) {
+      this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+      this.coveragePct = 0;
+      this.fullEvalReady = false;
+      this.allRawPaths = [];
+      this.globalStartTime = 0;
+      this.segmentRecords = [];
+      this.fullEvalStatusEl.style.display = 'none';
+      this.fullEvalStatusEl.textContent = '';
+      this.updateCoverageUI();
+    } else {
+      this.resetCoverage();
+    }
     this.clearUserCanvas();
     this.clearScoreDisplay();
     this.drawScene();
@@ -224,6 +271,9 @@ class MirrorTraceApp {
     this.segmentRecords = [];
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
+    this.multiLines = [];
+    this.multiLineCovered = [];
+    this.multiLineColors = [];
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
     this.updateCoverageUI();
@@ -232,14 +282,7 @@ class MirrorTraceApp {
   /** Called when the user toggles between overview and single-stroke mode */
   private onModeChanged(): void {
     this.modeLabelEl.textContent = this.singleStrokeMode ? '单笔' : '概括';
-    this.clearUserCanvas();
-    this.clearScoreDisplay();
-    /* Generate a new curve for the selected mode */
-    this.refPath = this.singleStrokeMode
-      ? generateRandomArchCurve(this.cssW, this.cssH, 40)
-      : generateRandomCurve(this.cssW, this.cssH, 40);
-    this.resetCoverage();
-    this.drawScene();
+    this.newCurve();
   }
 
   /* ──────────────────────────────────────────────── */
@@ -294,6 +337,27 @@ class MirrorTraceApp {
     const ctx = this.refCtx;
     ctx.clearRect(0, 0, this.cssW, this.cssH);
 
+    /* Multi-line mode: draw each line with its color */
+    if (this.singleStrokeMode && this.multiLineMode && this.multiLines.length > 0) {
+      for (let li = 0; li < this.multiLines.length; li++) {
+        const line = this.multiLines[li];
+        if (line.length < 2) continue;
+        const color = this.multiLineColors[li] || ML_COLORS[li % ML_COLORS.length];
+        const covered = this.multiLineCovered[li] || false;
+        ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : color;
+        ctx.lineWidth = covered ? 1.5 : 2.5;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(line[0].x, line[0].y);
+        for (let i = 1; i < line.length; i++) {
+          ctx.lineTo(line[i].x, line[i].y);
+        }
+        ctx.stroke();
+      }
+      return;
+    }
+
     if (this.refPath.length < 2) return;
 
     const hasCoverage =
@@ -301,23 +365,19 @@ class MirrorTraceApp {
       this.covered.some(v => v);
 
     if (!hasCoverage) {
-      /* No coverage — draw full path in normal blue */
       this.drawRefRange(ctx, 0, this.refPath.length - 1, '#4a9eff', 2);
       return;
     }
 
     /* Uncovered portions: dimmed */
     this.drawRanges(ctx, 'rgba(74, 158, 255, 0.20)', 2, i => !this.covered[i]);
-
-    /* Covered portions: bright blue, slightly thicker */
+    /* Covered portions: bright blue */
     this.drawRanges(ctx, '#4a9eff', 2.5, i => this.covered[i]);
 
-    /* Latest-match highlight (yellow glow) */
+    /* Latest-match highlight */
     if (this.latestMatchStart >= 0 && this.latestMatchEnd >= this.latestMatchStart) {
-      /* Outer glow */
       this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
         'rgba(255, 220, 80, 0.35)', 6);
-      /* Inner bright */
       this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
         'rgba(255, 240, 120, 0.60)', 3);
     }
@@ -423,7 +483,7 @@ class MirrorTraceApp {
 
   /** Update coverage UI based on mode and coverage percentage */
   private updateCoverageUI(): void {
-    if (this.singleStrokeMode) {
+    if (this.singleStrokeMode && !this.multiLineMode) {
       this.coverageEl.textContent = '\u2014';
       this.progressFillEl.style.width = '0%';
     } else {
@@ -511,9 +571,8 @@ class MirrorTraceApp {
       this.drawRefCanvas();
     }
 
-    /* Draw heatmap guide as background layer (only needed in single mode;
-       in overview mode the overlay stays from previous strokes) */
-    if (this.singleStrokeMode) {
+    /* Draw heatmap guide as background layer (only in single-stroke non-multi mode) */
+    if (this.singleStrokeMode && !this.multiLineMode) {
       this.drawHeatmapGuide();
     }
 
@@ -569,8 +628,14 @@ class MirrorTraceApp {
 
     /* Determine which reference sub-path to score against */
     let refSubPath: Point[];
-    if (this.singleStrokeMode) {
-      /* Single-stroke mode: entire ref path (full arch curve) */
+    let matchedLineIdx = -1;
+    if (this.singleStrokeMode && this.multiLineMode) {
+      /* Multi-line mode: match stroke to nearest un-covered line */
+      matchedLineIdx = this.matchMultiLine();
+      if (matchedLineIdx < 0) return; // no matching line found
+      refSubPath = this.multiLines[matchedLineIdx];
+    } else if (this.singleStrokeMode) {
+      /* Single-stroke mode: entire ref path (arch curve) */
       refSubPath = this.refPath;
     } else {
       /* Overview mode: match user stroke start/end to refPath segment */
@@ -605,8 +670,8 @@ class MirrorTraceApp {
 
     this.userProcessedPath = resampled;
 
-    /* Only show processed overlay in single-stroke mode */
-    if (this.singleStrokeMode) {
+    /* Only show processed overlay in single-stroke (non-multi) mode */
+    if (this.singleStrokeMode && !this.multiLineMode) {
       this.drawUserProcessed();
     }
 
@@ -617,6 +682,21 @@ class MirrorTraceApp {
     if (!this.singleStrokeMode && this.segmentRecords.length > 0) {
       const last = this.segmentRecords[this.segmentRecords.length - 1];
       last.score = score;
+    }
+
+    /* Multi-line: mark line as covered and update UI */
+    if (this.singleStrokeMode && this.multiLineMode && matchedLineIdx >= 0) {
+      this.multiLineCovered[matchedLineIdx] = true;
+      this.coveragePct = Math.round(
+        (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
+      );
+      this.updateCoverageUI();
+      this.drawRefCanvas();
+
+      /* Check completion */
+      if (this.coveragePct >= 100 && !this.fullEvalReady) {
+        this.triggerFullEvaluation(score);
+      }
     }
 
     /* Auto-trigger full evaluation when coverage ≥ 97 % */
@@ -788,6 +868,37 @@ class MirrorTraceApp {
       </div>
     `;
     this.fullEvalStatusEl.style.display = 'block';
+  }
+
+  /** Find the un-covered multi-line closest to the user's current stroke start/end */
+  private matchMultiLine(): number {
+    if (this.userRawPath.length < 2) return -1;
+    const startP = this.userRawPath[0];
+    const endP = this.userRawPath[this.userRawPath.length - 1];
+
+    let bestIdx = -1;
+    let bestDist = Infinity;
+
+    for (let li = 0; li < this.multiLines.length; li++) {
+      if (this.multiLineCovered[li]) continue;
+      const line = this.multiLines[li];
+      if (line.length < 2) continue;
+
+      /* Find nearest index for start and end, sum distances */
+      let minStart = Infinity, minEnd = Infinity;
+      for (const p of line) {
+        const ds = Math.hypot(p.x - startP.x, p.y - startP.y);
+        const de = Math.hypot(p.x - endP.x, p.y - endP.y);
+        if (ds < minStart) minStart = ds;
+        if (de < minEnd) minEnd = de;
+      }
+      const combined = minStart + minEnd;
+      if (combined < bestDist) {
+        bestDist = combined;
+        bestIdx = li;
+      }
+    }
+    return bestIdx;
   }
 
   /* ──────────────────────────────────────────────── */

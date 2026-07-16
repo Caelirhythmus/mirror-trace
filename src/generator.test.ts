@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRandomCurve, generateArchCurve, generateRandomArchCurve } from './generator';
+import { generateRandomCurve, generateArchCurve, generateRandomArchCurve, generateMultiLines, generateStraightLine } from './generator';
 
 /* ------------------------------------------------------------------ */
 /*  Generator tests                                                    */
@@ -123,5 +123,53 @@ describe('generateArchCurve', () => {
     }
     expect(seenUp).toBe(true);
     expect(seenDown).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Multi-line tests                                                    */
+/* ------------------------------------------------------------------ */
+
+describe('generateMultiLines', () => {
+  it('returns correct number of lines', () => {
+    const result = generateMultiLines(500, 400, 5, 2);
+    expect(result.lines.length).toBe(5);
+  });
+
+  it('each line has at least 2 points', () => {
+    const result = generateMultiLines(500, 400, 4, 1);
+    for (const line of result.lines) {
+      expect(line.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('clamps totalLines to 1–20', () => {
+    const result0 = generateMultiLines(500, 400, 0, 0);
+    expect(result0.lines.length).toBe(1);
+    const resultBig = generateMultiLines(500, 400, 99, 5);
+    expect(resultBig.lines.length).toBe(20);
+  });
+});
+
+describe('generateStraightLine', () => {
+  it('x is strictly increasing', () => {
+    const pts = generateStraightLine(500, 400);
+    for (let i = 1; i < pts.length; i++) {
+      expect(pts[i].x).toBeGreaterThan(pts[i - 1].x);
+    }
+  });
+
+  it('points are collinear', () => {
+    const pts = generateStraightLine(500, 400, 40, 0.01);
+    const first = pts[0], last = pts[pts.length - 1];
+    const dx = last.x - first.x, dy = last.y - first.y;
+    const lenSq = dx * dx + dy * dy;
+    let maxDist = 0;
+    for (const p of pts) {
+      const t = ((p.x - first.x) * dx + (p.y - first.y) * dy) / (lenSq || 1);
+      const px = first.x + t * dx, py = first.y + t * dy;
+      maxDist = Math.max(maxDist, Math.hypot(p.x - px, p.y - py));
+    }
+    expect(maxDist).toBeLessThan(0.5);
   });
 });

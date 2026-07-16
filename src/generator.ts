@@ -215,3 +215,65 @@ export function generateRandomArchCurve(
   const mag = 0.05 + Math.random() * 0.20; // 0.05 – 0.25
   return generateArchCurve(w, h, sign * mag, margin, step);
 }
+
+/* ------------------------------------------------------------------ */
+/*  Straight line (single-stroke multi-line mode)                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Generate a straight line from left to right with slight random y-offset.
+ */
+export function generateStraightLine(
+  w: number,
+  h: number,
+  margin = 40,
+  step = 0.015,
+): Point[] {
+  return generateArchCurve(w, h, 0, margin, step);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Multi-line generation (multiple curves stacked together)           */
+/* ------------------------------------------------------------------ */
+
+export interface MultiLineResult {
+  lines: Point[][];
+}
+
+/**
+ * Generate a set of lines for multi-line practice mode.
+ *
+ * @param w             Canvas CSS width
+ * @param h             Canvas CSS height
+ * @param totalLines    Total number of lines to generate
+ * @param straightCount Number of straight lines among them
+ * @param margin        Padding from edges
+ */
+export function generateMultiLines(
+  w: number,
+  h: number,
+  totalLines: number,
+  straightCount: number,
+  margin = 40,
+): MultiLineResult {
+  const clampedTotal = Math.max(1, Math.min(totalLines, 20));
+  const clampedStraight = Math.max(0, Math.min(straightCount, clampedTotal));
+  const archCount = clampedTotal - clampedStraight;
+
+  const lines: Point[][] = [];
+
+  for (let i = 0; i < clampedStraight; i++) {
+    lines.push(generateStraightLine(w, h, margin));
+  }
+  for (let i = 0; i < archCount; i++) {
+    lines.push(generateRandomArchCurve(w, h, margin));
+  }
+
+  /* Shuffle so the order is not predictable */
+  for (let i = lines.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [lines[i], lines[j]] = [lines[j], lines[i]];
+  }
+
+  return { lines };
+}
