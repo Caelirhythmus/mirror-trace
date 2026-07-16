@@ -84,4 +84,4 @@ npm run build      # 生产构建
 
 ## 许可证
 
-ISC
+MIT
