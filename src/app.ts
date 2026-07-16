@@ -457,18 +457,8 @@ export class MirrorTraceApp {
           if (state.processed.length >= 2) this.drawUserProcessed();
         }
       } else if (this.multiLineMode) {
-        /* Multi-line: replay all strokes, restore coverage */
-        this.multiLineCovered = new Array(this.multiLines.length).fill(false);
-        for (let i = 0; i <= this.historyPointer; i++) {
-          const s = this.strokeHistory[i];
-          this.replayRawStroke(s);
-          if (s.matchedLineIdx >= 0 && s.matchedLineIdx < this.multiLineCovered.length) {
-            this.multiLineCovered[s.matchedLineIdx] = true;
-          }
-        }
-        this.coveragePct = Math.round(
-          (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
-        );
+        /* Multi-line: rebuild coverage from stroke history */
+        this.rebuildMultiLineCoverage();
         this.updateCoverageUI();
         this.drawRefCanvas();
       } else {
@@ -783,6 +773,56 @@ export class MirrorTraceApp {
     renderDrawUserProcessed(this.userCtx, this.userProcessedPath);
   }
 
+  /**
+   * Rebuild multi-line coverage state from strokeHistory.
+   *
+   * For simple lines: each stroke marks its entire line as covered.
+   * For complex curves: segment-level indices are tracked in
+   * complexLineCoverage; the line is only marked fully covered
+   * when ALL its segments are done.
+   */
+  private rebuildMultiLineCoverage(): void {
+    this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+    /* Reset segment-level coverage for complex curves */
+    this.complexLineCoverage = this.complexLineCoverage.map(
+      c => c ? new Array(c.length).fill(false) : null,
+    );
+
+    for (let i = 0; i <= this.historyPointer; i++) {
+      const s = this.strokeHistory[i];
+      if (s.matchedLineIdx < 0 || s.matchedLineIdx >= this.multiLines.length) continue;
+      const segCov = this.complexLineCoverage[s.matchedLineIdx];
+      if (segCov) {
+        /* Complex curve: re-run segment matching to restore coverage */
+        const line = this.multiLines[s.matchedLineIdx];
+        if (s.processed.length >= 2 && line.length >= 2) {
+          const segmentResult = findSegment(line, s.processed);
+          for (let j = segmentResult.startIdx; j <= segmentResult.endIdx; j++) {
+            segCov[j] = true;
+          }
+        }
+      } else {
+        /* Simple line: mark entire line as covered */
+        this.multiLineCovered[s.matchedLineIdx] = true;
+      }
+    }
+
+    /* Compute weighted coverage percentage */
+    let totalWeight = 0;
+    let coveredWeight = 0;
+    for (let li = 0; li < this.multiLines.length; li++) {
+      const segCov = this.complexLineCoverage[li];
+      if (segCov) {
+        totalWeight += segCov.length;
+        coveredWeight += segCov.filter(c => c).length;
+      } else {
+        totalWeight += 1;
+        coveredWeight += this.multiLineCovered[li] ? 1 : 0;
+      }
+    }
+    this.coveragePct = totalWeight > 0 ? Math.round((coveredWeight / totalWeight) * 100) : 0;
+  }
+
   /** Update coverage UI based on mode and coverage percentage */
   private updateCoverageUI(): void {
     if (!this.multiLineMode && this.singleStrokeMode) {
@@ -1010,10 +1050,7 @@ export class MirrorTraceApp {
 
     /* Update coverage */
     if (this.multiLineMode && matchedLineIdx >= 0) {
-      this.multiLineCovered[matchedLineIdx] = true;
-      this.coveragePct = Math.round(
-        (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
-      );
+      this.rebuildMultiLineCoverage();
     } else if (!this.singleStrokeMode) {
       this.coveragePct = Math.round(
         (this.covered.filter(v => v).length / this.refPath.length) * 100,
@@ -1135,16 +1172,10 @@ export class MirrorTraceApp {
     /* Multi-line mode — each stroke covers one sub-line */
     if (this.multiLineMode) {
       this.drawHeatmapGuide();
+      this.rebuildMultiLineCoverage();
       for (let i = 0; i <= index; i++) {
-        const s = this.strokeHistory[i];
-        this.replayRawStroke(s);
-        if (s.matchedLineIdx >= 0 && s.matchedLineIdx < this.multiLineCovered.length) {
-          this.multiLineCovered[s.matchedLineIdx] = true;
-        }
+        this.replayRawStroke(this.strokeHistory[i]);
       }
-      this.coveragePct = Math.round(
-        (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
-      );
       this.updateCoverageUI();
       this.drawRefCanvas();
       state.score ? this.showScore(state.score) : this.clearScoreDisplay();
