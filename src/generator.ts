@@ -159,6 +159,54 @@ export function rotatePoints(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Bounding-box fitting                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Translate (and optionally scale) a point array so its bounding box
+ * fits within `[margin, w-margin]` × `[margin, h-margin]`.
+ *
+ * The curve's shape is preserved; only its position changes (plus
+ * uniform down-scaling when the rotated curve is too large to fit).
+ * A random offset within the available space keeps placement varied.
+ */
+export function translateToFit(
+  pts: readonly Point[],
+  w: number,
+  h: number,
+  margin = 40,
+): Point[] {
+  if (pts.length === 0) return [...pts];
+
+  /* Bounding box */
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const p of pts) {
+    if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+    if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+  }
+
+  const cw = x1 - x0, ch = y1 - y0;
+  const availW = w - 2 * margin;
+  const availH = h - 2 * margin;
+
+  /* Scale down uniformly if the curve is too large to fit */
+  if (cw > availW || ch > availH) {
+    const s = Math.min(availW / cw, availH / ch, 1);
+    const scaled = pts.map(p => ({
+      x: x0 + (p.x - x0) * s,
+      y: y0 + (p.y - y0) * s,
+    }));
+    return translateToFit(scaled, w, h, margin);
+  }
+
+  /* Random offset within the available space */
+  const dx = margin - x0 + Math.random() * (availW - cw);
+  const dy = margin - y0 + Math.random() * (availH - ch);
+
+  return pts.map(p => ({ x: p.x + dx, y: p.y + dy }));
+}
+
+/* ------------------------------------------------------------------ */
 /*  Arch curve (single-stroke mode)                                    */
 /* ------------------------------------------------------------------ */
 
@@ -253,7 +301,8 @@ export function generateRotatedArch(
   const angle = Math.random() * 360;
   const cx = margin + Math.random() * (w - 2 * margin);
   const cy = margin + Math.random() * (h - 2 * margin);
-  return rotatePoints(pts, angle, cx, cy);
+  const rotated = rotatePoints(pts, angle, cx, cy);
+  return translateToFit(rotated, w, h, margin);
 }
 
 /* ------------------------------------------------------------------ */
@@ -320,7 +369,7 @@ export function generateMultiLines(
     const angle = Math.random() * 360;
     const cx = margin + Math.random() * (w - 2 * margin);
     const cy = margin + Math.random() * (h - 2 * margin);
-    return rotatePoints(line, angle, cx, cy);
+    return translateToFit(rotatePoints(line, angle, cx, cy), w, h, margin);
   });
 
   return { lines: rotated };

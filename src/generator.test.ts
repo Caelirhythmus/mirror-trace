@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRandomCurve, generateArchCurve, generateRandomArchCurve, generateMultiLines, generateStraightLine, rotatePoints } from './generator';
+import { generateRandomCurve, generateArchCurve, generateRandomArchCurve, generateRotatedArch, generateMultiLines, generateStraightLine, rotatePoints, translateToFit } from './generator';
 
 /* ------------------------------------------------------------------ */
 /*  Generator tests                                                    */
@@ -206,5 +206,65 @@ describe('rotatePoints', () => {
     const pts = Array.from({ length: 50 }, (_, i) => ({ x: i, y: i * 2 }));
     const rotated = rotatePoints(pts, 45, 25, 25);
     expect(rotated.length).toBe(50);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  translateToFit tests                                               */
+/* ------------------------------------------------------------------ */
+
+describe('translateToFit', () => {
+  it('brings out-of-bounds points inside the canvas', () => {
+    // A line that extends far beyond the canvas
+    const pts = [{ x: -100, y: 50 }, { x: 600, y: 50 }];
+    const fitted = translateToFit(pts, 500, 400, 40);
+    for (const p of fitted) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(500);
+      expect(p.y).toBeGreaterThanOrEqual(0);
+      expect(p.y).toBeLessThanOrEqual(400);
+    }
+  });
+
+  it('keeps points within margin when possible', () => {
+    const pts = [{ x: -100, y: 50 }, { x: 600, y: 50 }];
+    const fitted = translateToFit(pts, 500, 400, 40);
+    for (const p of fitted) {
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x).toBeLessThanOrEqual(500);
+    }
+  });
+
+  it('preserves the original shape (relative positions)', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 100 }];
+    const fitted = translateToFit(pts, 500, 400, 40);
+    // Side lengths should be preserved (no scaling needed)
+    const d1 = Math.hypot(fitted[1].x - fitted[0].x, fitted[1].y - fitted[0].y);
+    const d2 = Math.hypot(fitted[2].x - fitted[1].x, fitted[2].y - fitted[1].y);
+    expect(d1).toBeCloseTo(100, 1);
+    expect(d2).toBeCloseTo(100, 1);
+  });
+
+  it('handles empty arrays', () => {
+    expect(translateToFit([], 500, 400)).toEqual([]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Rotated arch bounds test                                           */
+/* ------------------------------------------------------------------ */
+
+describe('generateRotatedArch', () => {
+  it('keeps all points within canvas bounds for many random seeds', () => {
+    for (let i = 0; i < 50; i++) {
+      const pts = generateRotatedArch(500, 400, 40);
+      expect(pts.length).toBeGreaterThan(10);
+      for (const p of pts) {
+        expect(p.x).toBeGreaterThanOrEqual(0);
+        expect(p.x).toBeLessThanOrEqual(500);
+        expect(p.y).toBeGreaterThanOrEqual(0);
+        expect(p.y).toBeLessThanOrEqual(400);
+      }
+    }
   });
 });
