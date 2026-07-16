@@ -13,6 +13,14 @@ import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
 import { saveEntry, loadHistory, clearHistory, makeId, HistoryEntry } from './storage';
 import { clientToCanvas, drawSegment } from './input';
+import {
+  drawRefCanvas as renderDrawRefCanvas,
+  drawHeatmapGuide as renderDrawHeatmapGuide,
+  drawUserProcessed as renderDrawUserProcessed,
+  replayRawStroke as renderReplayRawStroke,
+  RefCanvasState,
+  HeatmapState,
+} from './renderer';
 
 /* Virtual canvas coordinate space — curves are generated in this fixed
    size and scaled to fit the actual canvas via context transform. */
@@ -555,146 +563,40 @@ class MirrorTraceApp {
   /*  Drawing                                         */
   /* ──────────────────────────────────────────────── */
 
+  /** Build the rendering state object for drawRefCanvas */
+  private getRefCanvasState(): RefCanvasState {
+    return {
+      multiLineMode: this.multiLineMode,
+      multiLines: this.multiLines,
+      multiLineColors: this.multiLineColors,
+      multiLineCovered: this.multiLineCovered,
+      complexLineCoverage: this.complexLineCoverage,
+      refPath: this.refPath,
+      covered: this.covered,
+      latestMatchStart: this.latestMatchStart,
+      latestMatchEnd: this.latestMatchEnd,
+      liveHotspotPt: this.liveHotspotPt,
+      heatmapEnabled: this.heatmapEnabled,
+    };
+  }
+
+  /** Build the rendering state object for drawHeatmapGuide */
+  private getHeatmapState(): HeatmapState {
+    return {
+      multiLineMode: this.multiLineMode,
+      multiLines: this.multiLines,
+      refPath: this.refPath,
+      singleStrokeMode: this.singleStrokeMode,
+      heatmapEnabled: this.heatmapEnabled,
+    };
+  }
+
   private drawScene(): void {
     this.drawRefCanvas();
   }
 
-  /** Draw a contiguous range of refPath indices with the given style */
-  private drawRefRange(
-    ctx: CanvasRenderingContext2D,
-    start: number,
-    end: number,
-    style: string,
-    width: number,
-  ): void {
-    ctx.strokeStyle = style;
-    ctx.lineWidth = width;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
-    for (let i = start + 1; i <= end; i++) {
-      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
-    }
-    ctx.stroke();
-  }
-
-  /** Draw all contiguous ranges where predicate(i) is true */
-  private drawRanges(
-    ctx: CanvasRenderingContext2D,
-    style: string,
-    width: number,
-    predicate: (i: number) => boolean,
-  ): void {
-    let i = 0;
-    while (i < this.refPath.length) {
-      if (predicate(i)) {
-        let j = i;
-        while (j < this.refPath.length && predicate(j)) j++;
-        this.drawRefRange(ctx, i, j - 1, style, width);
-        i = j;
-      } else {
-        i++;
-      }
-    }
-  }
-
-  /** Draw contiguous ranges within an arbitrary point array */
-  private drawLineRanges(
-    ctx: CanvasRenderingContext2D,
-    line: readonly Point[],
-    style: string,
-    width: number,
-    predicate: (i: number) => boolean,
-  ): void {
-    let i = 0;
-    while (i < line.length) {
-      if (predicate(i)) {
-        let j = i;
-        while (j < line.length && predicate(j)) j++;
-        ctx.strokeStyle = style;
-        ctx.lineWidth = width;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(line[i].x, line[i].y);
-        for (let k = i + 1; k < j; k++) ctx.lineTo(line[k].x, line[k].y);
-        ctx.stroke();
-        i = j;
-      } else {
-        i++;
-      }
-    }
-  }
-
   private drawRefCanvas(): void {
-    const ctx = this.refCtx;
-    ctx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
-
-    /* Multi-line mode: draw each line with its color */
-    if (this.multiLineMode && this.multiLines.length > 0) {
-      for (let li = 0; li < this.multiLines.length; li++) {
-        const line = this.multiLines[li];
-        if (line.length < 2) continue;
-        const color = this.multiLineColors[li] || ML_COLORS[li % ML_COLORS.length];
-        const covered = this.multiLineCovered[li] || false;
-        const segCov = this.complexLineCoverage[li];
-
-        if (segCov) {
-          /* Complex curve: dim covered segments, highlight uncovered */
-          this.drawLineRanges(ctx, line, 'rgba(255,255,255,0.15)', 1.5, i => segCov[i]);
-          this.drawLineRanges(ctx, line, color, 2.5, i => !segCov[i]);
-        } else {
-          ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : color;
-          ctx.lineWidth = covered ? 1.5 : 2.5;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.beginPath();
-          ctx.moveTo(line[0].x, line[0].y);
-          for (let i = 1; i < line.length; i++) {
-            ctx.lineTo(line[i].x, line[i].y);
-          }
-          ctx.stroke();
-        }
-      }
-      return;
-    }
-
-    if (this.refPath.length < 2) return;
-
-    const hasCoverage =
-      this.covered.length === this.refPath.length &&
-      this.covered.some(v => v);
-
-    if (!hasCoverage) {
-      this.drawRefRange(ctx, 0, this.refPath.length - 1, '#4a9eff', 2);
-      return;
-    }
-
-    /* Uncovered portions: dimmed */
-    this.drawRanges(ctx, 'rgba(74, 158, 255, 0.20)', 2, i => !this.covered[i]);
-    /* Covered portions: bright blue */
-    this.drawRanges(ctx, '#4a9eff', 2.5, i => this.covered[i]);
-
-    /* Latest-match highlight */
-    if (this.latestMatchStart >= 0 && this.latestMatchEnd >= this.latestMatchStart) {
-      this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
-        'rgba(255, 220, 80, 0.35)', 6);
-      this.drawRefRange(ctx, this.latestMatchStart, this.latestMatchEnd,
-        'rgba(255, 240, 120, 0.60)', 3);
-    }
-
-    /* Pen-position hotspot crosshair */
-    if (this.liveHotspotPt !== null && this.heatmapEnabled) {
-      const hp = this.liveHotspotPt;
-      const s = 6;
-      ctx.strokeStyle = 'rgba(255, 255, 100, 0.75)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(hp.x - s, hp.y); ctx.lineTo(hp.x + s, hp.y);
-      ctx.moveTo(hp.x, hp.y - s); ctx.lineTo(hp.x, hp.y + s);
-      ctx.stroke();
-    }
+    renderDrawRefCanvas(this.refCtx, VIRTUAL_W, VIRTUAL_H, ML_COLORS, this.getRefCanvasState());
   }
 
   private clearUserCanvas(): void {
@@ -729,21 +631,7 @@ class MirrorTraceApp {
 
   /** Highlight process-path overlay */
   private drawUserProcessed(): void {
-    const pts = this.userProcessedPath;
-    if (pts.length < 2) return;
-
-    const ctx = this.userCtx;
-    ctx.strokeStyle = 'rgba(255, 255, 100, 0.45)';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(pts[0].x, pts[0].y);
-    for (let i = 1; i < pts.length; i++) {
-      ctx.lineTo(pts[i].x, pts[i].y);
-    }
-    ctx.stroke();
+    renderDrawUserProcessed(this.userCtx, this.userProcessedPath);
   }
 
   /* ──────────────────────────────────────────────── */
@@ -752,37 +640,7 @@ class MirrorTraceApp {
 
   /** Draw the full reference curve very faintly as a static guide on the user canvas */
   private drawHeatmapGuide(): void {
-    if (!this.heatmapEnabled) return;
-    const ctx = this.userCtx;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    if (this.multiLineMode && this.multiLines.length > 0) {
-      /* Multi-line: draw all uncovered lines faintly as guide */
-      ctx.lineWidth = 1.5;
-      for (const line of this.multiLines) {
-        if (line.length < 2) continue;
-        ctx.strokeStyle = 'rgba(74, 158, 255, 0.08)';
-        ctx.beginPath();
-        ctx.moveTo(line[0].x, line[0].y);
-        for (let i = 1; i < line.length; i++) {
-          ctx.lineTo(line[i].x, line[i].y);
-        }
-        ctx.stroke();
-      }
-      return;
-    }
-
-    /* Single-stroke / overview mode */
-    if (this.refPath.length < 2) return;
-    ctx.strokeStyle = 'rgba(74, 158, 255, 0.10)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(this.refPath[0].x, this.refPath[0].y);
-    for (let i = 1; i < this.refPath.length; i++) {
-      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
-    }
-    ctx.stroke();
+    renderDrawHeatmapGuide(this.userCtx, this.getHeatmapState());
   }
 
   /** Update coverage UI based on mode and coverage percentage */
@@ -1107,18 +965,7 @@ class MirrorTraceApp {
 
   /** Replay a single raw stroke polyline onto the user canvas */
   private replayRawStroke(state: StrokeState): void {
-    if (state.raw.length < 2) return;
-    const ctx = this.userCtx;
-    ctx.strokeStyle = '#ff6b6b';
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(state.raw[0].x, state.raw[0].y);
-    for (let i = 1; i < state.raw.length; i++) {
-      ctx.lineTo(state.raw[i].x, state.raw[i].y);
-    }
-    ctx.stroke();
+    renderReplayRawStroke(this.userCtx, state.raw);
   }
 
   /**
