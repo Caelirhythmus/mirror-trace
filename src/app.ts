@@ -807,23 +807,22 @@ export class MirrorTraceApp {
       }
     }
 
-    /* Compute weighted coverage percentage */
-    let totalWeight = 0;
-    let coveredWeight = 0;
+    /* Compute coverage: each line counts equally (1 unit), complex
+       curves use their segment-covered ratio as the fractional unit. */
+    let totalUnits = 0;
+    let coveredUnits = 0;
     for (let li = 0; li < this.multiLines.length; li++) {
       const segCov = this.complexLineCoverage[li];
+      totalUnits += 1;
       if (segCov) {
-        totalWeight += segCov.length;
         const covered = segCov.filter(c => c).length;
-        coveredWeight += covered;
-        /* Mark line as fully covered when ALL segments are done */
+        coveredUnits += covered / segCov.length; // fractional: 0 → 1
         if (covered >= segCov.length) this.multiLineCovered[li] = true;
       } else {
-        totalWeight += 1;
-        coveredWeight += this.multiLineCovered[li] ? 1 : 0;
+        coveredUnits += this.multiLineCovered[li] ? 1 : 0;
       }
     }
-    this.coveragePct = totalWeight > 0 ? Math.round((coveredWeight / totalWeight) * 100) : 0;
+    this.coveragePct = totalUnits > 0 ? Math.round((coveredUnits / totalUnits) * 100) : 0;
   }
 
   /** Update coverage UI based on mode and coverage percentage */
