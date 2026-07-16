@@ -58,7 +58,7 @@ function createDOM(): void {
         </div>
         <div class="config-row" id="multi-params" style="display:none">
           <label>直线 <input type="number" id="input-straight" value="2" min="0" max="20" /></label>
-          <label>总量 <input type="number" id="input-total" value="5" min="1" max="20" /></label>
+          <label>弧线 <input type="number" id="input-arch" value="3" min="0" max="20" /></label>
         </div>
         <div class="config-row" id="hell-params" style="display:none">
           <label>直线 <input type="number" id="input-hell-straight" value="2" min="0" max="20" /></label>
@@ -302,21 +302,32 @@ describe('MirrorTraceApp — 集成测试', () => {
       expect(app.multiLines.length).toBe(2 + 2 + 1); // 2 straight + 2 arch + 1 complex
     });
 
-    it('地狱模式关闭后 multiLineMode 恢复为 false', () => {
+    it('地狱模式关闭后 multiLineMode 恢复为多线 checkbox 的实际状态', () => {
       const app = (window as any).__mirrorTrace as any;
       const hellToggle = document.getElementById('toggle-hell') as HTMLInputElement;
+      const multiToggle = document.getElementById('toggle-multi') as HTMLInputElement;
 
-      // Turn on
+      // Open multi-line first
+      multiToggle.checked = true;
+      multiToggle.dispatchEvent(new Event('change'));
+      expect(app.multiLineMode).toBe(true);
+
+      // Turn on hell
       hellToggle.checked = true;
       hellToggle.dispatchEvent(new Event('change'));
       expect(app.hellMode).toBe(true);
 
-      // Turn off
+      // Turn off hell
       hellToggle.checked = false;
       hellToggle.dispatchEvent(new Event('change'));
       expect(app.hellMode).toBe(false);
 
-      // Step 0 fix: multiLineMode should be reset to false
+      // multiLineMode should restore to the multi-toggle checkbox state (still checked)
+      expect(app.multiLineMode).toBe(true);
+
+      // Also verify it responds to actually unchecking multi-line
+      multiToggle.checked = false;
+      multiToggle.dispatchEvent(new Event('change'));
       expect(app.multiLineMode).toBe(false);
     });
   });

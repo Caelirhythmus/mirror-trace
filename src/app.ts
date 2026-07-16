@@ -86,7 +86,7 @@ export class MirrorTraceApp {
   /** true = hell mode (straight + arch + complex, independent counts) */
   hellMode = false;
   private straightLineCount = 2;
-  private totalLineCount = 5;
+  private archLineCount = 3;
   /** Hell-mode individual line counts */
   private hellStraightCount = 2;
   private hellArchCount = 2;
@@ -268,7 +268,8 @@ export class MirrorTraceApp {
       if (this.hellMode) {
         this.multiLineMode = true; // share rendering logic
       } else {
-        this.multiLineMode = false; // restore on exit
+        /* Restore multi-line state from the actual checkbox */
+        this.multiLineMode = (document.getElementById('toggle-multi') as HTMLInputElement).checked;
       }
       this.updateConfigVisibility();
       this.newCurve();
@@ -280,9 +281,9 @@ export class MirrorTraceApp {
       this.straightLineCount = Math.max(0, Math.min(20, parseInt(straightInput.value) || 0));
       if (this.multiLineMode) this.newCurve();
     });
-    const totalInput = document.getElementById('input-total') as HTMLInputElement;
-    totalInput.addEventListener('change', () => {
-      this.totalLineCount = Math.max(1, Math.min(20, parseInt(totalInput.value) || 1));
+    const archInput = document.getElementById('input-arch') as HTMLInputElement;
+    archInput.addEventListener('change', () => {
+      this.archLineCount = Math.max(0, Math.min(20, parseInt(archInput.value) || 0));
       if (this.multiLineMode) this.newCurve();
     });
 
@@ -334,12 +335,12 @@ export class MirrorTraceApp {
         (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
       } else {
         this.straightLineCount = preset.counts[0];
-        this.totalLineCount = preset.counts[0] + preset.counts[1];
+        this.archLineCount = preset.counts[1];
         this.hellMode = false;
         this.multiLineMode = true;
         /* Sync multi-mode inputs */
         (document.getElementById('input-straight') as HTMLInputElement).value = String(preset.counts[0]);
-        (document.getElementById('input-total') as HTMLInputElement).value = String(this.totalLineCount);
+        (document.getElementById('input-arch') as HTMLInputElement).value = String(this.archLineCount);
         (document.getElementById('toggle-multi') as HTMLInputElement).checked = true;
         (document.getElementById('toggle-hell') as HTMLInputElement).checked = false;
       }
@@ -585,7 +586,7 @@ export class MirrorTraceApp {
     if (this.multiLineMode) {
       const result = this.hellMode
         ? generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.hellStraightCount, this.hellArchCount, this.hellComplexCount, 40, this.complexSegments)
-        : generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.straightLineCount, this.totalLineCount - this.straightLineCount, 0, 40);
+        : generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.straightLineCount, this.archLineCount, 0, 40);
       this.multiLines = result.lines;
       this.refPath = result.lines[0];
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
@@ -1154,12 +1155,8 @@ export class MirrorTraceApp {
       }
       this.updateUndoRedoButtons();
 
-      /* Check if all lines are covered (multi-line complete) */
-      const allCovered = this.multiLineCovered.every(v => v);
-      if (allCovered) {
-        this.coverageEl.textContent = '100%';
-        this.progressFillEl.style.width = '100%';
-        /* Trigger full evaluation in both multi and hell mode */
+      /* Check if coverage ≥ 97 % → trigger full evaluation */
+      if (this.coveragePct >= 97 && !this.fullEvalReady) {
         this.triggerFullEvaluation(score);
       }
       return;
@@ -1408,7 +1405,7 @@ export class MirrorTraceApp {
       lineConfig = `${this.hellStraightCount}+${this.hellArchCount}+${this.hellComplexCount}`;
     } else if (this.multiLineMode) {
       mode = '多条';
-      lineConfig = `${this.straightLineCount}+${this.totalLineCount - this.straightLineCount}`;
+      lineConfig = `${this.straightLineCount}+${this.archLineCount}`;
     } else if (this.singleStrokeMode) {
       mode = '单笔';
     } else {
