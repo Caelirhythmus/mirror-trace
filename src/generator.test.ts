@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateRandomCurve, generateArchCurve, generateRandomArchCurve, generateMultiLines, generateStraightLine } from './generator';
+import { generateRandomCurve, generateArchCurve, generateRandomArchCurve, generateMultiLines, generateStraightLine, rotatePoints } from './generator';
 
 /* ------------------------------------------------------------------ */
 /*  Generator tests                                                    */
@@ -171,5 +171,40 @@ describe('generateStraightLine', () => {
       maxDist = Math.max(maxDist, Math.hypot(p.x - px, p.y - py));
     }
     expect(maxDist).toBeLessThan(0.5);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Rotation tests                                                     */
+/* ------------------------------------------------------------------ */
+
+describe('rotatePoints', () => {
+  it('0° rotation returns same points', () => {
+    const pts = [{ x: 10, y: 0 }, { x: 0, y: 10 }];
+    const rotated = rotatePoints(pts, 0, 0, 0);
+    expect(rotated[0].x).toBeCloseTo(10, 5);
+    expect(rotated[0].y).toBeCloseTo(0, 5);
+    expect(rotated[1].x).toBeCloseTo(0, 5);
+    expect(rotated[1].y).toBeCloseTo(10, 5);
+  });
+
+  it('90° rotation about origin', () => {
+    const pts = [{ x: 10, y: 0 }];
+    const rotated = rotatePoints(pts, 90, 0, 0);
+    expect(rotated[0].x).toBeCloseTo(0, 5);
+    expect(rotated[0].y).toBeCloseTo(10, 5);
+  });
+
+  it('180° rotation about a non-origin centre', () => {
+    const pts = [{ x: 20, y: 10 }];
+    const rotated = rotatePoints(pts, 180, 10, 10);
+    expect(rotated[0].x).toBeCloseTo(0, 5);
+    expect(rotated[0].y).toBeCloseTo(10, 5);
+  });
+
+  it('preserves point count', () => {
+    const pts = Array.from({ length: 50 }, (_, i) => ({ x: i, y: i * 2 }));
+    const rotated = rotatePoints(pts, 45, 25, 25);
+    expect(rotated.length).toBe(50);
   });
 });

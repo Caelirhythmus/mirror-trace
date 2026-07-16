@@ -137,6 +137,28 @@ export function generateRandomCurve(
 }
 
 /* ------------------------------------------------------------------ */
+/*  Rotation utility                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Rotate an array of points by `angle` degrees about center `(cx, cy)`.
+ */
+export function rotatePoints(
+  pts: readonly Point[],
+  angleDeg: number,
+  cx: number,
+  cy: number,
+): Point[] {
+  const rad = (angleDeg * Math.PI) / 180;
+  const cosA = Math.cos(rad);
+  const sinA = Math.sin(rad);
+  return pts.map(p => ({
+    x: cx + (p.x - cx) * cosA - (p.y - cy) * sinA,
+    y: cy + (p.x - cx) * sinA + (p.y - cy) * cosA,
+  }));
+}
+
+/* ------------------------------------------------------------------ */
 /*  Arch curve (single-stroke mode)                                    */
 /* ------------------------------------------------------------------ */
 
@@ -216,6 +238,24 @@ export function generateRandomArchCurve(
   return generateArchCurve(w, h, sign * mag, margin, step);
 }
 
+/**
+ * Generate a randomly-rotated arch — the base arch is produced by
+ * `generateRandomArchCurve` and then rotated by a random angle (0–360°)
+ * about a random centre within the canvas.
+ */
+export function generateRotatedArch(
+  w: number,
+  h: number,
+  margin = 40,
+  step = 0.015,
+): Point[] {
+  const pts = generateRandomArchCurve(w, h, margin, step);
+  const angle = Math.random() * 360;
+  const cx = margin + Math.random() * (w - 2 * margin);
+  const cy = margin + Math.random() * (h - 2 * margin);
+  return rotatePoints(pts, angle, cx, cy);
+}
+
 /* ------------------------------------------------------------------ */
 /*  Straight line (single-stroke multi-line mode)                      */
 /* ------------------------------------------------------------------ */
@@ -262,6 +302,7 @@ export function generateMultiLines(
 
   const lines: Point[][] = [];
 
+  /* Generate base lines (horizontal left→right) */
   for (let i = 0; i < clampedStraight; i++) {
     lines.push(generateStraightLine(w, h, margin));
   }
@@ -269,11 +310,18 @@ export function generateMultiLines(
     lines.push(generateRandomArchCurve(w, h, margin));
   }
 
-  /* Shuffle so the order is not predictable */
+  /* Shuffle, then rotate each line by a random angle around a random centre */
   for (let i = lines.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [lines[i], lines[j]] = [lines[j], lines[i]];
   }
 
-  return { lines };
+  const rotated = lines.map(line => {
+    const angle = Math.random() * 360;
+    const cx = margin + Math.random() * (w - 2 * margin);
+    const cy = margin + Math.random() * (h - 2 * margin);
+    return rotatePoints(line, angle, cx, cy);
+  });
+
+  return { lines: rotated };
 }

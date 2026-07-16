@@ -7,7 +7,7 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve, generateRandomArchCurve, generateMultiLines } from './generator';
+import { generateRandomCurve, generateRotatedArch, generateMultiLines } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
@@ -246,7 +246,7 @@ class MirrorTraceApp {
       this.multiLineCovered = [];
       this.multiLineColors = [];
       this.refPath = this.singleStrokeMode
-        ? generateRandomArchCurve(this.cssW, this.cssH, 40)
+        ? generateRotatedArch(this.cssW, this.cssH, 40)
         : generateRandomCurve(this.cssW, this.cssH, 40);
       this.covered = new Array(this.refPath.length).fill(false);
       this.coveragePct = 0;
