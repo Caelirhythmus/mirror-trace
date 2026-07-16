@@ -108,6 +108,7 @@ export class MirrorTraceApp {
   private debugIdealEl!: HTMLElement;
   private undoBtnEl!: HTMLButtonElement;
   private redoBtnEl!: HTMLButtonElement;
+  private replayBtnEl!: HTMLButtonElement;
   private historyChartEl!: HTMLCanvasElement;
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
@@ -165,6 +166,9 @@ export class MirrorTraceApp {
     this.redoBtnEl = document.getElementById('btn-redo') as HTMLButtonElement;
     this.undoBtnEl.addEventListener('click', () => this.undo());
     this.redoBtnEl.addEventListener('click', () => this.redo());
+    const replayBtn = document.getElementById('btn-replay') as HTMLButtonElement;
+    replayBtn.addEventListener('click', () => this.replayStroke());
+    this.replayBtnEl = replayBtn;
     this.updateUndoRedoButtons();
 
     /* Export button + popup menu */
@@ -840,13 +844,66 @@ export class MirrorTraceApp {
     this.scoreTimeEl.textContent = String(s.timeScore);
     this.debugHausdorffEl.textContent = String(s.hausdorff95Dist);
     this.debugRmsEl.textContent = String(s.rmsDist);
-    this.debugElapsedEl.textContent = String(s.elapsedMs);
+    this.debugElapsedEl.textContent = String(Math.round(s.elapsedMs));
     this.debugIdealEl.textContent = String(s.idealMs);
   }
+
+  /** Tracks active replay animation so it can be cancelled on new draw */
+  private replayRafId = 0;
 
   /** Highlight process-path overlay */
   private drawUserProcessed(): void {
     renderDrawUserProcessed(this.userCtx, this.userProcessedPath);
+  }
+
+  /**
+   * Animate the most recent completed stroke in real-time on the user canvas.
+   * Clears existing content, draws the heatmap guide, then replays the raw
+   * pointer points at approximately the original drawing speed.
+   */
+  private replayStroke(): void {
+    if (this.historyPointer < 0) return;
+    const state = this.strokeHistory[this.historyPointer];
+    if (!state || state.raw.length < 2) return;
+
+    this.clearUserCanvas();
+    this.redrawUserCanvasContent();
+
+    const raw = state.raw;
+    const total = raw.length;
+    /* Replay at roughly original speed, but cap between 0.5 s and 3 s */
+    const duration = Math.max(500, Math.min(3000, state.score?.elapsedMs ?? 1500));
+    const ctx = this.userCtx;
+
+    ctx.strokeStyle = '#ff6b6b';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    let idx = 0;
+    const t0 = performance.now();
+
+    const draw = () => {
+      if (this.replayRafId === 0) return; /* cancelled */
+      const elapsed = performance.now() - t0;
+      const target = Math.floor((elapsed / duration) * (total - 1));
+      while (idx <= target && idx < total) {
+        if (idx === 0) {
+          ctx.beginPath();
+          ctx.moveTo(raw[0].x, raw[0].y);
+        } else {
+          ctx.lineTo(raw[idx].x, raw[idx].y);
+          ctx.stroke();
+        }
+        idx++;
+      }
+      if (idx < total) {
+        this.replayRafId = requestAnimationFrame(draw);
+      } else {
+        this.replayRafId = 0;
+      }
+    };
+    this.replayRafId = requestAnimationFrame(draw);
   }
 
   /**
@@ -988,6 +1045,8 @@ export class MirrorTraceApp {
   }
 
   private onPointerDown(e: PointerEvent): void {
+    /* Cancel any ongoing replay */
+    if (this.replayRafId) { cancelAnimationFrame(this.replayRafId); this.replayRafId = 0; }
     this.isDrawing = true;
     /* Capture pointer so pointerup fires even outside the canvas */
     this.userCanvas.setPointerCapture(e.pointerId);
@@ -1273,10 +1332,11 @@ export class MirrorTraceApp {
     state.score ? this.showScore(state.score) : this.clearScoreDisplay();
   }
 
-  /** Enable / disable undo / redo buttons based on history state */
+  /** Enable / disable undo / redo / replay buttons based on history state */
   private updateUndoRedoButtons(): void {
     this.undoBtnEl.disabled = this.historyPointer < 0;
     this.redoBtnEl.disabled = this.historyPointer >= this.strokeHistory.length - 1;
+    this.replayBtnEl.disabled = this.historyPointer < 0;
   }
 
   /* ──────────────────────────────────────────────── */

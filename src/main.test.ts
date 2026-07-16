@@ -80,6 +80,7 @@ function createDOM(): void {
           <span id="mode-switch" style="display:inline-flex"></span>
           <button id="btn-redraw">↺</button>
           <button id="btn-newcurve">✚</button>
+          <button id="btn-replay" disabled>▶</button>
           <button id="btn-undo" disabled>↩</button>
           <button id="btn-redo" disabled>↪</button>
           <button id="btn-export">↓</button>
