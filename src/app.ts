@@ -917,6 +917,8 @@ export class MirrorTraceApp {
       if (allCovered) {
         this.coverageEl.textContent = '100%';
         this.progressFillEl.style.width = '100%';
+        /* Trigger full evaluation in both multi and hell mode */
+        this.triggerFullEvaluation(score);
       }
       return;
     }
