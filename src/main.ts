@@ -229,8 +229,7 @@ class MirrorTraceApp {
       mq?.removeEventListener('change', listen);
       mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
       mq.addEventListener('change', () => {
-        /* Defer to next frame so layout / getBoundingClientRect are fresh */
-        requestAnimationFrame(() => this.resizeCanvases());
+        this.resizeCanvases();
       });
     };
     listen();
