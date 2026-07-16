@@ -512,22 +512,37 @@ class MirrorTraceApp {
     this.newCurve();
   }
 
-  /** Show/hide multi-line config based on current mode */
+  /** Show/hide multi-line config and mode controls based on current states */
   private updateConfigVisibility(): void {
     this.multiConfigEl.style.display = 'flex';
+
+    if (this.hellMode) {
+      /* Hell mode is independent: hide all mode/line toggles, show only hell
+         params + generic controls (pen, guide, history) */
+      document.getElementById('multi-toggle-row')!.style.display = 'none';
+      document.getElementById('hell-toggle-row')!.style.display = 'flex';
+      this.multiParamsEl.style.display = 'none';
+      this.hellParamsEl.style.display = 'flex';
+      this.complexParamsEl.style.display = 'none';
+      document.getElementById('mode-switch')!.style.display = 'none';
+      return;
+    }
+
     if (this.singleStrokeMode) {
       document.getElementById('multi-toggle-row')!.style.display = 'flex';
       document.getElementById('hell-toggle-row')!.style.display = 'flex';
-      this.multiParamsEl.style.display = this.multiLineMode && !this.hellMode ? 'flex' : 'none';
-      this.hellParamsEl.style.display = this.hellMode ? 'flex' : 'none';
+      this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
+      this.hellParamsEl.style.display = 'none';
       this.complexParamsEl.style.display = 'none';
+      document.getElementById('mode-switch')!.style.display = 'inline-flex';
     } else {
-      /* Overview mode: show complex-segment config instead of multi-line/hell toggles */
+      /* Overview mode */
       document.getElementById('multi-toggle-row')!.style.display = 'none';
-      document.getElementById('hell-toggle-row')!.style.display = 'none';
+      document.getElementById('hell-toggle-row')!.style.display = 'flex';
       this.multiParamsEl.style.display = 'none';
       this.hellParamsEl.style.display = 'none';
       this.complexParamsEl.style.display = 'flex';
+      document.getElementById('mode-switch')!.style.display = 'inline-flex';
     }
   }
 
