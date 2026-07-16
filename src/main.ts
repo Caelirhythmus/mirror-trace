@@ -10,6 +10,7 @@ import { Point } from './types';
 import { generateRandomCurve } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
+import { findSegment } from './matching';
 import { saveEntry, loadHistory, clearHistory, makeId, HistoryEntry } from './storage';
 
 /* ------------------------------------------------------------------ */
@@ -45,6 +46,8 @@ class MirrorTraceApp {
   private prevPoint: Point = { x: 0, y: 0 };
   private pressureEnabled = true;
   private heatmapEnabled = true;
+  /** false = overview mode (multi-stroke, segment matching) */
+  private singleStrokeMode = false;
 
   /* stroke history for undo / redo */
   private strokeHistory: StrokeState[] = [];
@@ -400,7 +403,19 @@ class MirrorTraceApp {
 
     const rdpEpsilon = 0.5; // CSS pixels
     const simplified = rdpSimplify(this.userRawPath, rdpEpsilon);
-    const resampled = resampleToCount(simplified, this.refPath.length);
+
+    /* Determine which reference sub-path to score against */
+    let refSubPath: Point[];
+    if (this.singleStrokeMode) {
+      /* Single-stroke mode: entire ref path (full arch curve) */
+      refSubPath = this.refPath;
+    } else {
+      /* Overview mode: match user stroke start/end to refPath segment */
+      const match = findSegment(this.refPath, this.userRawPath);
+      refSubPath = match.subPath;
+    }
+
+    const resampled = resampleToCount(simplified, refSubPath.length);
 
     this.userProcessedPath = resampled;
 
@@ -408,7 +423,7 @@ class MirrorTraceApp {
     this.drawUserProcessed();
 
     /* Score the attempt */
-    const score = computeScores(this.refPath, resampled, elapsedMs);
+    const score = computeScores(refSubPath, resampled, elapsedMs);
     this.showScore(score);
 
     /* Save to history */
@@ -428,7 +443,8 @@ class MirrorTraceApp {
       rawPts: this.userRawPath.length,
       afterRDP: simplified.length,
       afterResample: resampled.length,
-      refPts: this.refPath.length,
+      refPts: this.singleStrokeMode ? this.refPath.length : refSubPath.length,
+      matchMode: this.singleStrokeMode ? 'single' : 'segment',
       rawLength: arcLength(this.userRawPath).toFixed(1),
       score: score.finalScore,
     });
