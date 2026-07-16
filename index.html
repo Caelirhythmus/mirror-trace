@@ -42,28 +42,6 @@
         用时 <span id="debug-elapsed">—</span> / <span id="debug-ideal">—</span> ms
       </div>
       <div id="eval-badges" class="eval-badges" style="display:none"></div>
-      <label class="toggle-label" title="根据笔压调整线条粗细，倾斜角调整透明度">
-        <input type="checkbox" id="toggle-pressure" checked />
-        <span class="toggle-slider"></span>
-        <span class="toggle-text">笔锋</span>
-      </label>
-      <label class="toggle-label" title="在右侧画布显示参考线淡影，笔附近高亮">
-        <input type="checkbox" id="toggle-heatmap" checked />
-        <span class="toggle-slider"></span>
-        <span class="toggle-text">引导</span>
-      </label>
-      <span class="mode-indicator" id="mode-label">概括</span>
-      <label class="toggle-label" title="切换概括/单笔模式">
-        <input type="checkbox" id="toggle-mode" />
-        <span class="toggle-slider"></span>
-        <span class="toggle-text">单笔</span>
-      </label>
-      <div class="history-buttons">
-        <button id="btn-redraw" title="重画 R">↺</button>
-        <button id="btn-newcurve" title="再画一张 N">✚</button>
-        <button id="btn-undo" disabled title="撤销 Ctrl+Z">↩</button>
-        <button id="btn-redo" disabled title="重做 Ctrl+Y">↪</button>
-      </div>
     </div>
 
     <div id="multi-config">
@@ -80,6 +58,30 @@
       </div>
       <div class="config-row" id="complex-params" style="display:none">
         <label>复杂分段 <input type="number" id="input-segments" value="3" min="2" max="12" /></label>
+      </div>
+      <div class="ctrl-group">
+        <label class="toggle-label" title="根据笔压调整线条粗细，倾斜角调整透明度">
+          <input type="checkbox" id="toggle-pressure" checked />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">笔锋</span>
+        </label>
+        <label class="toggle-label" title="在右侧画布显示参考线淡影，笔附近高亮">
+          <input type="checkbox" id="toggle-heatmap" checked />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">引导</span>
+        </label>
+        <span class="mode-indicator" id="mode-label">概括</span>
+        <label class="toggle-label" title="切换概括/单笔模式">
+          <input type="checkbox" id="toggle-mode" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">单笔</span>
+        </label>
+        <div class="history-buttons">
+          <button id="btn-redraw" title="重画 R">↺</button>
+          <button id="btn-newcurve" title="再画一张 N">✚</button>
+          <button id="btn-undo" disabled title="撤销 Ctrl+Z">↩</button>
+          <button id="btn-redo" disabled title="重做 Ctrl+Y">↪</button>
+        </div>
       </div>
     </div>
 

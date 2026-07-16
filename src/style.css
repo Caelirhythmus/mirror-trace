@@ -184,6 +184,16 @@ canvas {
   gap: 0.6rem;
 }
 
+/* Controls grouped in the config bar (pen, guide, mode, history) */
+.ctrl-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: auto;
+  padding-left: 0.6rem;
+  border-left: 1px solid #2a2a4a;
+}
+
 .config-row label {
   font-size: 0.75rem;
   color: #707090;
