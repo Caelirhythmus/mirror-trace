@@ -7,7 +7,7 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve, generateRotatedArch, generateMultiLines } from './generator';
+import { generateRandomCurve, generateRotatedArch, generateMultiLines, translateToFit } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
@@ -221,7 +221,8 @@ class MirrorTraceApp {
       mq?.removeEventListener('change', listen);
       mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
       mq.addEventListener('change', () => {
-        this.resizeCanvases();
+        /* Defer to next frame so layout / getBoundingClientRect are fresh */
+        requestAnimationFrame(() => this.resizeCanvases());
       });
     };
     listen();
@@ -230,6 +231,10 @@ class MirrorTraceApp {
   private resizeCanvases(): void {
     /* Refresh DPR — browser zoom changes devicePixelRatio */
     this.dpr = window.devicePixelRatio || 1;
+
+    /* Remember old dimensions to detect canvas size changes */
+    const oldW = this.cssW;
+    const oldH = this.cssH;
 
     /* Ref canvas sets the baseline CSS size */
     const rectR = this.refCanvas.getBoundingClientRect();
@@ -246,11 +251,68 @@ class MirrorTraceApp {
     this.userCanvas.height = Math.round(rectU.height) * this.dpr;
     this.userCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
+    /* If the canvas dimensions changed, the current refPath may be
+       positioned for the old size.  Re-fit it to the new canvas. */
+    if (oldW > 0 && oldH > 0 && (oldW !== this.cssW || oldH !== this.cssH)) {
+      this.refitRefPath();
+    }
+
     /* Redraw ref canvas */
     this.drawScene();
 
     /* Redraw user canvas content lost due to buffer resize */
     this.redrawUserCanvasContent();
+  }
+
+  /**
+   * Check whether the current reference curve fits the canvas; if not,
+   * reposition it with translateToFit and discard stale user strokes.
+   */
+  private refitRefPath(): void {
+    const margin = 40;
+
+    /* Helper: check bounding box of a point array */
+    const outOfBounds = (pts: readonly Point[]): boolean => {
+      if (pts.length < 2) return false;
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const p of pts) {
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x;
+        if (p.y < y0) y0 = p.y; if (p.y > y1) y1 = p.y;
+      }
+      return x0 < margin || x1 > this.cssW - margin ||
+             y0 < margin || y1 > this.cssH - margin;
+    };
+
+    const needsFit = this.multiLineMode
+      ? this.multiLines.some(line => outOfBounds(line))
+      : outOfBounds(this.refPath);
+
+    if (!needsFit) return;
+
+    /* Reposition the reference curve(s) */
+    if (this.multiLineMode) {
+      this.multiLines = this.multiLines.map(line =>
+        translateToFit(line, this.cssW, this.cssH, margin),
+      );
+      if (this.multiLines.length > 0) this.refPath = this.multiLines[0];
+    } else {
+      this.refPath = translateToFit(this.refPath, this.cssW, this.cssH, margin);
+    }
+
+    /* User strokes reference the old coordinates — reset */
+    this.clearUserCanvas();
+    this.strokeHistory = [];
+    this.historyPointer = -1;
+    this.covered = new Array(this.refPath.length).fill(false);
+    this.coveragePct = 0;
+    this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+    this.fullEvalReady = false;
+    this.allRawPaths = [];
+    this.segmentRecords = [];
+    this.globalStartTime = 0;
+    this.fullEvalStatusEl.style.display = 'none';
+    this.updateCoverageUI();
+    this.clearScoreDisplay();
   }
 
   /**
