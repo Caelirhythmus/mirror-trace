@@ -105,6 +105,8 @@ class MirrorTraceApp {
 
   /* coverage tracking for overview mode */
   private covered: boolean[] = [];
+  /** Per-line segment coverage for hell-mode complex curves (null = simple line) */
+  private complexLineCoverage: (boolean[] | null)[] = [];
   private coveragePct = 0;
   private fullEvalReady = false;
 
@@ -415,12 +417,17 @@ class MirrorTraceApp {
       this.refPath = result.lines[0];
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
       this.multiLineColors = this.multiLines.map((_, i) => ML_COLORS[i % ML_COLORS.length]);
+      /* In hell mode, detect complex curves (many points) for segment-level coverage */
+      this.complexLineCoverage = this.hellMode
+        ? this.multiLines.map(line => line.length > 80 ? new Array(line.length).fill(false) : null)
+        : [];
       this.coveragePct = 0;
       this.fullEvalReady = false;
     } else {
       this.multiLines = [];
       this.multiLineCovered = [];
       this.multiLineColors = [];
+      this.complexLineCoverage = [];
       this.refPath = this.singleStrokeMode
         ? generateRotatedArch(VIRTUAL_W, VIRTUAL_H, 40)
         : generateRandomCurve(VIRTUAL_W, VIRTUAL_H, 40, this.complexSegments);
@@ -460,6 +467,8 @@ class MirrorTraceApp {
       this.segmentRecords = [];
       this.evalBadgesEl.style.display = 'none';
       this.evalBadgesEl.innerHTML = '';
+      /* Reset hell-mode complex line segment coverage */
+      this.complexLineCoverage = this.complexLineCoverage.map(c => c ? new Array(c.length).fill(false) : null);
       this.resizeCanvases();
       this.updateCoverageUI();
     } else {
@@ -484,6 +493,7 @@ class MirrorTraceApp {
     this.multiLines = [];
     this.multiLineCovered = [];
     this.multiLineColors = [];
+    this.complexLineCoverage = [];
     this.evalBadgesEl.style.display = 'none';
     this.evalBadgesEl.innerHTML = '';
     this.resizeCanvases();
@@ -569,6 +579,34 @@ class MirrorTraceApp {
     }
   }
 
+  /** Draw contiguous ranges within an arbitrary point array */
+  private drawLineRanges(
+    ctx: CanvasRenderingContext2D,
+    line: readonly Point[],
+    style: string,
+    width: number,
+    predicate: (i: number) => boolean,
+  ): void {
+    let i = 0;
+    while (i < line.length) {
+      if (predicate(i)) {
+        let j = i;
+        while (j < line.length && predicate(j)) j++;
+        ctx.strokeStyle = style;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(line[i].x, line[i].y);
+        for (let k = i + 1; k < j; k++) ctx.lineTo(line[k].x, line[k].y);
+        ctx.stroke();
+        i = j;
+      } else {
+        i++;
+      }
+    }
+  }
+
   private drawRefCanvas(): void {
     const ctx = this.refCtx;
     ctx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
@@ -580,16 +618,24 @@ class MirrorTraceApp {
         if (line.length < 2) continue;
         const color = this.multiLineColors[li] || ML_COLORS[li % ML_COLORS.length];
         const covered = this.multiLineCovered[li] || false;
-        ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : color;
-        ctx.lineWidth = covered ? 1.5 : 2.5;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(line[0].x, line[0].y);
-        for (let i = 1; i < line.length; i++) {
-          ctx.lineTo(line[i].x, line[i].y);
+        const segCov = this.complexLineCoverage[li];
+
+        if (segCov) {
+          /* Complex curve: dim covered segments, highlight uncovered */
+          this.drawLineRanges(ctx, line, 'rgba(255,255,255,0.15)', 1.5, i => segCov[i]);
+          this.drawLineRanges(ctx, line, color, 2.5, i => !segCov[i]);
+        } else {
+          ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : color;
+          ctx.lineWidth = covered ? 1.5 : 2.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(line[0].x, line[0].y);
+          for (let i = 1; i < line.length; i++) {
+            ctx.lineTo(line[i].x, line[i].y);
+          }
+          ctx.stroke();
         }
-        ctx.stroke();
       }
       return;
     }
@@ -909,7 +955,19 @@ class MirrorTraceApp {
       /* Multi-line mode: match stroke to nearest un-covered line */
       matchedLineIdx = this.matchMultiLine();
       if (matchedLineIdx < 0) return; // no matching line found
-      refSubPath = this.multiLines[matchedLineIdx];
+      const matchedLine = this.multiLines[matchedLineIdx];
+      /* Hell mode complex curve: use segment matching within the line */
+      const segCov = this.complexLineCoverage[matchedLineIdx];
+      if (segCov) {
+        const match = findSegment(matchedLine, this.userRawPath);
+        refSubPath = match.subPath;
+        /* Track segment coverage within this complex line */
+        for (let j = match.startIdx; j <= match.endIdx; j++) {
+          segCov[j] = true;
+        }
+      } else {
+        refSubPath = matchedLine;
+      }
     } else if (this.singleStrokeMode) {
       /* Single-stroke mode: entire ref path (arch curve) */
       refSubPath = this.refPath;
@@ -962,7 +1020,13 @@ class MirrorTraceApp {
 
     /* Multi-line: mark line as covered and update UI */
     if (this.multiLineMode && matchedLineIdx >= 0) {
-      this.multiLineCovered[matchedLineIdx] = true;
+      /* Hell mode complex curve: only mark fully covered when all segments traced */
+      const segCov = this.complexLineCoverage[matchedLineIdx];
+      if (segCov) {
+        if (segCov.every(v => v)) this.multiLineCovered[matchedLineIdx] = true;
+      } else {
+        this.multiLineCovered[matchedLineIdx] = true;
+      }
       this.coveragePct = Math.round(
         (this.multiLineCovered.filter(v => v).length / this.multiLines.length) * 100,
       );
