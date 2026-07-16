@@ -31,6 +31,8 @@ class MirrorTraceApp {
   /* state */
   private isDrawing = false;
   private pointerDownTime = 0;
+  private prevPoint: Point = { x: 0, y: 0 };
+  private pressureEnabled = true;
 
   /* DOM elements for score display */
   private scoreFinalEl!: HTMLElement;
@@ -59,6 +61,12 @@ class MirrorTraceApp {
     this.debugRmsEl = document.getElementById('debug-rms')!;
     this.debugElapsedEl = document.getElementById('debug-elapsed')!;
     this.debugIdealEl = document.getElementById('debug-ideal')!;
+
+    /* Bind pressure toggle */
+    const toggle = document.getElementById('toggle-pressure') as HTMLInputElement;
+    toggle.addEventListener('change', () => {
+      this.pressureEnabled = toggle.checked;
+    });
 
     this.initResizeObserver();
     this.bindPointerEvents();
@@ -139,16 +147,36 @@ class MirrorTraceApp {
     this.userCtx.clearRect(0, 0, this.cssW, this.cssH);
     this.userRawPath = [];
     this.userProcessedPath = [];
+    this.prevPoint = { x: 0, y: 0 };
   }
 
-  private drawUserIncremental(p: Point): void {
+  /**
+   * Draw a single segment from `prevPoint` → `to`, with pen-pressure
+   * feedback when `pressureEnabled` is true.
+   *
+   * Pressure (0–1)       → line width        1–6 px
+   * Tilt magnitude (0–90) → alpha multiplier  1.0 → 0.6
+   */
+  private drawSegment(to: Point, pressure: number, tiltX: number, tiltY: number): void {
     const ctx = this.userCtx;
-    ctx.strokeStyle = '#ff6b6b';
-    ctx.lineWidth = 2.5;
+
+    let lineWidth = 2.5;
+    let alpha = 1;
+
+    if (this.pressureEnabled) {
+      lineWidth = 1 + pressure * 5;               // 1–6 px
+      const tiltMag = Math.min(90, Math.hypot(tiltX, tiltY));
+      alpha = 1 - (tiltMag / 90) * 0.4;            // 1.0 → 0.6
+    }
+
+    ctx.strokeStyle = `rgba(255, 107, 107, ${alpha})`;
+    ctx.lineWidth = lineWidth;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    ctx.lineTo(p.x, p.y);
+    ctx.beginPath();
+    ctx.moveTo(this.prevPoint.x, this.prevPoint.y);
+    ctx.lineTo(to.x, to.y);
     ctx.stroke();
   }
 
@@ -217,8 +245,7 @@ class MirrorTraceApp {
 
     const p = this.clientToCanvas(e);
     this.userRawPath.push(p);
-    this.userCtx.beginPath();
-    this.userCtx.moveTo(p.x, p.y);
+    this.prevPoint = p;
   }
 
   private onPointerMove(e: PointerEvent): void {
@@ -229,12 +256,14 @@ class MirrorTraceApp {
       for (const ev of events) {
         const p = this.clientToCanvas(ev);
         this.userRawPath.push(p);
-        this.drawUserIncremental(p);
+        this.drawSegment(p, ev.pressure, ev.tiltX, ev.tiltY);
+        this.prevPoint = p;
       }
     } else {
       const p = this.clientToCanvas(e);
       this.userRawPath.push(p);
-      this.drawUserIncremental(p);
+      this.drawSegment(p, e.pressure, e.tiltX, e.tiltY);
+      this.prevPoint = p;
     }
   }
 
