@@ -140,21 +140,21 @@ describe('generateArchCurve', () => {
 
 describe('generateMultiLines', () => {
   it('returns correct number of lines', () => {
-    const result = generateMultiLines(500, 400, 5, 2);
+    const result = generateMultiLines(500, 400, 2, 2, 1);
     expect(result.lines.length).toBe(5);
   });
 
   it('each line has at least 2 points', () => {
-    const result = generateMultiLines(500, 400, 4, 1);
+    const result = generateMultiLines(500, 400, 1, 1, 1);
     for (const line of result.lines) {
       expect(line.length).toBeGreaterThanOrEqual(2);
     }
   });
 
-  it('clamps totalLines to 1–20', () => {
-    const result0 = generateMultiLines(500, 400, 0, 0);
-    expect(result0.lines.length).toBe(1);
-    const resultBig = generateMultiLines(500, 400, 99, 5);
+  it('clamps each count to 0–20', () => {
+    const result0 = generateMultiLines(500, 400, 0, 0, 0);
+    expect(result0.lines.length).toBe(0);
+    const resultBig = generateMultiLines(500, 400, 99, 0, 0);
     expect(resultBig.lines.length).toBe(20);
   });
 });

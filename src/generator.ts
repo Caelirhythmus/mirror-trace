@@ -334,32 +334,38 @@ export interface MultiLineResult {
 
 /**
  * Generate a set of lines for multi-line practice mode.
+ * Each type (straight / arch / complex) has its own count.
  *
- * @param w             Canvas CSS width
- * @param h             Canvas CSS height
- * @param totalLines    Total number of lines to generate
- * @param straightCount Number of straight lines among them
- * @param margin        Padding from edges
+ * @param w               Canvas CSS width
+ * @param h               Canvas CSS height
+ * @param straightCount   Number of straight lines
+ * @param archCount       Number of arch curves
+ * @param complexCount    Number of complex (multi-segment) curves
+ * @param margin          Padding from edges
+ * @param complexSegments Number of cubic-Bézier segments per complex curve
  */
 export function generateMultiLines(
   w: number,
   h: number,
-  totalLines: number,
   straightCount: number,
+  archCount: number,
+  complexCount: number,
   margin = 40,
+  complexSegments = 3,
 ): MultiLineResult {
-  const clampedTotal = Math.max(1, Math.min(totalLines, 20));
-  const clampedStraight = Math.max(0, Math.min(straightCount, clampedTotal));
-  const archCount = clampedTotal - clampedStraight;
+  const clamped = (v: number) => Math.max(0, Math.min(v, 20));
 
   const lines: Point[][] = [];
 
   /* Generate base lines (horizontal left→right) */
-  for (let i = 0; i < clampedStraight; i++) {
+  for (let i = 0; i < clamped(straightCount); i++) {
     lines.push(generateStraightLine(w, h, margin));
   }
-  for (let i = 0; i < archCount; i++) {
+  for (let i = 0; i < clamped(archCount); i++) {
     lines.push(generateRandomArchCurve(w, h, margin));
+  }
+  for (let i = 0; i < clamped(complexCount); i++) {
+    lines.push(generateRandomCurve(w, h, margin, complexSegments));
   }
 
   /* Shuffle, then rotate each line by a random angle around a random centre */

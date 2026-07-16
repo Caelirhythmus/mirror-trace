@@ -52,9 +52,21 @@
           <span class="toggle-text">多条</span>
         </label>
       </div>
+      <div class="config-row" id="hell-toggle-row" style="display:none">
+        <label class="toggle-label" title="地狱模式：直线+弧线+复杂曲线自由配">
+          <input type="checkbox" id="toggle-hell" />
+          <span class="toggle-slider"></span>
+          <span class="toggle-text">地狱</span>
+        </label>
+      </div>
       <div class="config-row" id="multi-params">
         <label>直线 <input type="number" id="input-straight" value="2" min="0" max="20" /></label>
         <label>总量 <input type="number" id="input-total" value="5" min="1" max="20" /></label>
+      </div>
+      <div class="config-row" id="hell-params" style="display:none">
+        <label>直线 <input type="number" id="input-hell-straight" value="2" min="0" max="20" /></label>
+        <label>弧线 <input type="number" id="input-hell-arch" value="2" min="0" max="20" /></label>
+        <label>复杂 <input type="number" id="input-hell-complex" value="1" min="0" max="20" /></label>
       </div>
       <div class="config-row" id="complex-params" style="display:none">
         <label>复杂分段 <input type="number" id="input-segments" value="3" min="2" max="12" /></label>

@@ -66,8 +66,14 @@ class MirrorTraceApp {
   private singleStrokeMode = false;
   /** true = multi-line mode (multiple lines stacked, only in single-stroke) */
   private multiLineMode = false;
+  /** true = hell mode (straight + arch + complex, independent counts) */
+  private hellMode = false;
   private straightLineCount = 2;
   private totalLineCount = 5;
+  /** Hell-mode individual line counts */
+  private hellStraightCount = 2;
+  private hellArchCount = 2;
+  private hellComplexCount = 1;
   /** Number of cubic-Bézier segments for overview-mode complex curve */
   private complexSegments = 3;
 
@@ -93,6 +99,7 @@ class MirrorTraceApp {
   private modeLabelEl!: HTMLElement;
   private multiConfigEl!: HTMLElement;
   private multiParamsEl!: HTMLElement;
+  private hellParamsEl!: HTMLElement;
   private complexParamsEl!: HTMLElement;
   private segmentsInputEl!: HTMLInputElement;
 
@@ -159,6 +166,7 @@ class MirrorTraceApp {
     this.multiConfigEl = document.getElementById('multi-config')!;
     this.multiParamsEl = document.getElementById('multi-params')!;
     this.complexParamsEl = document.getElementById('complex-params')!;
+    this.hellParamsEl = document.getElementById('hell-params')!;
     this.segmentsInputEl = document.getElementById('input-segments') as HTMLInputElement;
 
     /* Bind toggles */
@@ -179,10 +187,18 @@ class MirrorTraceApp {
       this.onModeChanged();
     });
 
-    /* Multi-line toggle (visible only in single-stroke mode) */
+    /* Multi-line / hell toggles (mutually exclusive, visible in single-stroke mode) */
     const multiToggle = document.getElementById('toggle-multi') as HTMLInputElement;
     multiToggle.addEventListener('change', () => {
       this.multiLineMode = multiToggle.checked;
+      if (this.multiLineMode) this.hellMode = false;
+      this.updateConfigVisibility();
+      this.newCurve();
+    });
+    const hellToggle = document.getElementById('toggle-hell') as HTMLInputElement;
+    hellToggle.addEventListener('change', () => {
+      this.hellMode = hellToggle.checked;
+      if (this.hellMode) this.multiLineMode = true; // share rendering logic
       this.updateConfigVisibility();
       this.newCurve();
     });
@@ -197,6 +213,23 @@ class MirrorTraceApp {
     totalInput.addEventListener('change', () => {
       this.totalLineCount = Math.max(1, Math.min(20, parseInt(totalInput.value) || 1));
       if (this.multiLineMode) this.newCurve();
+    });
+
+    /* Hell-mode numeric parameters */
+    const hellStraight = document.getElementById('input-hell-straight') as HTMLInputElement;
+    hellStraight.addEventListener('change', () => {
+      this.hellStraightCount = Math.max(0, Math.min(20, parseInt(hellStraight.value) || 0));
+      if (this.hellMode) this.newCurve();
+    });
+    const hellArch = document.getElementById('input-hell-arch') as HTMLInputElement;
+    hellArch.addEventListener('change', () => {
+      this.hellArchCount = Math.max(0, Math.min(20, parseInt(hellArch.value) || 0));
+      if (this.hellMode) this.newCurve();
+    });
+    const hellComplex = document.getElementById('input-hell-complex') as HTMLInputElement;
+    hellComplex.addEventListener('change', () => {
+      this.hellComplexCount = Math.max(0, Math.min(20, parseInt(hellComplex.value) || 0));
+      if (this.hellMode) this.newCurve();
     });
 
     /* Complex segment count (overview mode) */
@@ -375,7 +408,9 @@ class MirrorTraceApp {
     this.strokeHistory = [];
     this.historyPointer = -1;
     if (this.multiLineMode) {
-      const result = generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.totalLineCount, this.straightLineCount, 40);
+      const result = this.hellMode
+        ? generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.hellStraightCount, this.hellArchCount, this.hellComplexCount, 40, this.complexSegments)
+        : generateMultiLines(VIRTUAL_W, VIRTUAL_H, this.straightLineCount, this.totalLineCount - this.straightLineCount, 0, 40);
       this.multiLines = result.lines;
       this.refPath = result.lines[0];
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
@@ -458,6 +493,11 @@ class MirrorTraceApp {
   /** Called when the user toggles between overview and single-stroke mode */
   private onModeChanged(): void {
     this.modeLabelEl.textContent = this.singleStrokeMode ? '单笔' : '概括';
+    if (!this.singleStrokeMode) {
+      /* Switch to overview: reset multi-line/hell toggles */
+      this.multiLineMode = false;
+      this.hellMode = false;
+    }
     this.updateConfigVisibility();
     this.newCurve();
   }
@@ -467,12 +507,16 @@ class MirrorTraceApp {
     this.multiConfigEl.style.display = 'flex';
     if (this.singleStrokeMode) {
       document.getElementById('multi-toggle-row')!.style.display = 'flex';
-      this.multiParamsEl.style.display = this.multiLineMode ? 'flex' : 'none';
+      document.getElementById('hell-toggle-row')!.style.display = 'flex';
+      this.multiParamsEl.style.display = this.multiLineMode && !this.hellMode ? 'flex' : 'none';
+      this.hellParamsEl.style.display = this.hellMode ? 'flex' : 'none';
       this.complexParamsEl.style.display = 'none';
     } else {
-      /* Overview mode: show complex-segment config instead of multi-line toggle */
+      /* Overview mode: show complex-segment config instead of multi-line/hell toggles */
       document.getElementById('multi-toggle-row')!.style.display = 'none';
+      document.getElementById('hell-toggle-row')!.style.display = 'none';
       this.multiParamsEl.style.display = 'none';
+      this.hellParamsEl.style.display = 'none';
       this.complexParamsEl.style.display = 'flex';
     }
   }
