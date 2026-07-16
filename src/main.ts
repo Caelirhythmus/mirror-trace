@@ -388,6 +388,9 @@ class MirrorTraceApp {
     this.latestMatchEnd = -1;
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
+    /* Force layout recalculation so virtScale/virtOffX/Y reflect the
+       post-panel canvas size before we clear and redraw. */
+    this.resizeCanvases();
     this.updateCoverageUI();
     this.clearUserCanvas();
     this.clearScoreDisplay();
@@ -410,6 +413,7 @@ class MirrorTraceApp {
       this.segmentRecords = [];
       this.fullEvalStatusEl.style.display = 'none';
       this.fullEvalStatusEl.textContent = '';
+      this.resizeCanvases();
       this.updateCoverageUI();
     } else {
       this.resetCoverage();
@@ -435,6 +439,7 @@ class MirrorTraceApp {
     this.multiLineColors = [];
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
+    this.resizeCanvases();
     this.updateCoverageUI();
   }
 
