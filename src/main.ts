@@ -7,7 +7,7 @@
  */
 
 import { Point } from './types';
-import { generateRandomCurve } from './generator';
+import { generateRandomCurve, generateArchCurve } from './generator';
 import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
@@ -67,6 +67,7 @@ class MirrorTraceApp {
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
   private fullEvalStatusEl!: HTMLElement;
+  private modeLabelEl!: HTMLElement;
 
   /* coverage tracking for overview mode */
   private covered: boolean[] = [];
@@ -110,6 +111,7 @@ class MirrorTraceApp {
 
     this.coverageEl = document.getElementById('coverage-pct')!;
     this.fullEvalStatusEl = document.getElementById('full-eval-status')!;
+    this.modeLabelEl = document.getElementById('mode-label')!;
 
     /* Bind toggles */
     const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
@@ -120,6 +122,13 @@ class MirrorTraceApp {
     const heatmapToggle = document.getElementById('toggle-heatmap') as HTMLInputElement;
     heatmapToggle.addEventListener('change', () => {
       this.heatmapEnabled = heatmapToggle.checked;
+    });
+
+    /* Mode switch: overview ↔ single-stroke */
+    const modeToggle = document.getElementById('toggle-mode') as HTMLInputElement;
+    modeToggle.addEventListener('change', () => {
+      this.singleStrokeMode = modeToggle.checked;
+      this.onModeChanged();
     });
 
     /* Keyboard shortcuts */
@@ -170,7 +179,9 @@ class MirrorTraceApp {
   /** Generate a fresh reference curve and reset everything */
   newCurve(): void {
     if (this.cssW < 100 || this.cssH < 100) return;
-    this.refPath = generateRandomCurve(this.cssW, this.cssH, 40);
+    this.refPath = this.singleStrokeMode
+      ? generateArchCurve(this.cssW, this.cssH, 0.15, 40)
+      : generateRandomCurve(this.cssW, this.cssH, 40);
     this.resetCoverage();
     this.clearUserCanvas();
     this.clearScoreDisplay();
@@ -188,6 +199,19 @@ class MirrorTraceApp {
     this.fullEvalStatusEl.style.display = 'none';
     this.fullEvalStatusEl.textContent = '';
     this.updateCoverageUI();
+  }
+
+  /** Called when the user toggles between overview and single-stroke mode */
+  private onModeChanged(): void {
+    this.modeLabelEl.textContent = this.singleStrokeMode ? '单笔' : '概括';
+    this.clearUserCanvas();
+    this.clearScoreDisplay();
+    /* Generate a new curve for the selected mode */
+    this.refPath = this.singleStrokeMode
+      ? generateArchCurve(this.cssW, this.cssH, 0.15, 40)
+      : generateRandomCurve(this.cssW, this.cssH, 40);
+    this.resetCoverage();
+    this.drawScene();
   }
 
   /* ──────────────────────────────────────────────── */
@@ -359,9 +383,11 @@ class MirrorTraceApp {
     ctx.stroke();
   }
 
-  /** Update coverage percentage display in UI */
+  /** Update coverage UI based on mode and coverage percentage */
   private updateCoverageUI(): void {
-    if (!this.singleStrokeMode) {
+    if (this.singleStrokeMode) {
+      this.coverageEl.textContent = '\u2014';
+    } else {
       this.coverageEl.textContent = `${this.coveragePct}%`;
     }
   }
