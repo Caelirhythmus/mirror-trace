@@ -33,6 +33,7 @@ class MirrorTraceApp {
   private pointerDownTime = 0;
   private prevPoint: Point = { x: 0, y: 0 };
   private pressureEnabled = true;
+  private heatmapEnabled = true;
 
   /* DOM elements for score display */
   private scoreFinalEl!: HTMLElement;
@@ -62,10 +63,15 @@ class MirrorTraceApp {
     this.debugElapsedEl = document.getElementById('debug-elapsed')!;
     this.debugIdealEl = document.getElementById('debug-ideal')!;
 
-    /* Bind pressure toggle */
-    const toggle = document.getElementById('toggle-pressure') as HTMLInputElement;
-    toggle.addEventListener('change', () => {
-      this.pressureEnabled = toggle.checked;
+    /* Bind toggles */
+    const pressureToggle = document.getElementById('toggle-pressure') as HTMLInputElement;
+    pressureToggle.addEventListener('change', () => {
+      this.pressureEnabled = pressureToggle.checked;
+    });
+
+    const heatmapToggle = document.getElementById('toggle-heatmap') as HTMLInputElement;
+    heatmapToggle.addEventListener('change', () => {
+      this.heatmapEnabled = heatmapToggle.checked;
     });
 
     this.initResizeObserver();
@@ -222,6 +228,67 @@ class MirrorTraceApp {
   }
 
   /* ──────────────────────────────────────────────── */
+  /*  Heatmap guidance                                */
+  /* ──────────────────────────────────────────────── */
+
+  /** Draw the full reference curve very faintly as a static guide on the user canvas */
+  private drawHeatmapGuide(): void {
+    if (!this.heatmapEnabled || this.refPath.length < 2) return;
+    const ctx = this.userCtx;
+    ctx.strokeStyle = 'rgba(74, 158, 255, 0.10)';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.refPath[0].x, this.refPath[0].y);
+    for (let i = 1; i < this.refPath.length; i++) {
+      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    }
+    ctx.stroke();
+  }
+
+  /** Draw a glowing hotspot on the reference curve near the pen position */
+  private drawHeatmapHotspot(penPos: Point): void {
+    if (!this.heatmapEnabled || this.refPath.length < 2) return;
+
+    /* Find index of nearest ref point */
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < this.refPath.length; i++) {
+      const d = Math.hypot(this.refPath[i].x - penPos.x, this.refPath[i].y - penPos.y);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+
+    const ctx = this.userCtx;
+    const R = 25; // window radius (number of points on each side)
+    const start = Math.max(0, bestIdx - R);
+    const end = Math.min(this.refPath.length - 1, bestIdx + R);
+    if (end - start < 2) return;
+
+    /* Glow layer 1 (outer, wider) */
+    ctx.strokeStyle = 'rgba(74, 158, 255, 0.25)';
+    ctx.lineWidth = 6;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
+    for (let i = start + 1; i <= end; i++) {
+      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    }
+    ctx.stroke();
+
+    /* Glow layer 2 (inner, brighter) */
+    ctx.strokeStyle = 'rgba(100, 190, 255, 0.45)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(this.refPath[start].x, this.refPath[start].y);
+    for (let i = start + 1; i <= end; i++) {
+      ctx.lineTo(this.refPath[i].x, this.refPath[i].y);
+    }
+    ctx.stroke();
+  }
+
+  /* ──────────────────────────────────────────────── */
   /*  Pointer events                                  */
   /* ──────────────────────────────────────────────── */
 
@@ -243,6 +310,9 @@ class MirrorTraceApp {
     this.userProcessedPath = [];
     this.clearScoreDisplay();
 
+    /* Draw heatmap guide as background layer */
+    this.drawHeatmapGuide();
+
     const p = this.clientToCanvas(e);
     this.userRawPath.push(p);
     this.prevPoint = p;
@@ -257,12 +327,14 @@ class MirrorTraceApp {
         const p = this.clientToCanvas(ev);
         this.userRawPath.push(p);
         this.drawSegment(p, ev.pressure, ev.tiltX, ev.tiltY);
+        this.drawHeatmapHotspot(p);
         this.prevPoint = p;
       }
     } else {
       const p = this.clientToCanvas(e);
       this.userRawPath.push(p);
       this.drawSegment(p, e.pressure, e.tiltX, e.tiltY);
+      this.drawHeatmapHotspot(p);
       this.prevPoint = p;
     }
   }
