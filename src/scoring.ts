@@ -36,11 +36,7 @@ export interface ScoreResult {
 /*  Tunable parameters                                                 */
 /* ------------------------------------------------------------------ */
 
-const V_IDEAL = 160; // px/s — 最佳临摹速度（调高一倍增加挑战性）
-
-// 距离→分数映射：线性下降至 D_MAX 时归零
-const HAUSDORFF_D_MAX = 60; // px
-const RMS_D_MAX = 40; // px
+const V_IDEAL = 160; // px/s — 最佳临摹速度
 
 // 时间负指数衰减系数 — 值越大，超时扣分越狠
 const TIME_DECAY_K = 2.0;
@@ -65,13 +61,19 @@ export function computeScores(
   const h95 = hausdorff95(ref, user);
   const { rms } = procrustesTranslate(ref, user);
 
-  const hausdorffScore = distToScore(h95, HAUSDORFF_D_MAX);
-  const rmsScore = distToScore(rms, RMS_D_MAX);
+  /* Scale thresholds by reference path length so longer curves get
+     proportionate tolerance.  The minimum floor prevents degenerate
+     paths from being unfairly strict. */
+  const refLen = arcLength(ref);
+  const hausdorffMax = Math.max(20, refLen * 0.15);
+  const rmsMax = Math.max(15, refLen * 0.10);
+
+  const hausdorffScore = distToScore(h95, hausdorffMax);
+  const rmsScore = distToScore(rms, rmsMax);
 
   const spatialScore = rmsScore * 0.6 + hausdorffScore * 0.4;
 
   /* ---- 2. 时间消耗分 ---- */
-  const refLen = arcLength(ref);
   const idealMs = (refLen / V_IDEAL) * 1000;
   const timeScore = computeTimeScore(elapsedMs, idealMs);
 
