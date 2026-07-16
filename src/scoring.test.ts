@@ -88,6 +88,25 @@ describe('computeScores', () => {
     expect(result.finalScore).toBeCloseTo(expectedSpatial, 1);
   });
 
+  it('方向无关：从 A→B 和 B→A 得到的空间分一致', () => {
+    const ref = refLine(150);
+    const user = ref.map(pt => p(pt.x + 10, pt.y + 5));
+    const userRev = [...user].reverse();
+    const elapsed = 290 / 160 * 1000;
+
+    const fwd = computeScores(ref, user, elapsed);
+    const rev = computeScores(ref, userRev, elapsed);
+
+    // Both forward and reversed should get the same spatial score
+    // (identical shape, just drawn in opposite order)
+    expect(fwd.spatialScore).toBe(rev.spatialScore);
+    expect(fwd.finalScore).toBe(rev.finalScore);
+    // The rmsDist in the result is the min of both directions, so
+    // for a forward input it may have taken the forward or reverse
+    // direction — but the end score should be identical.
+    expect(fwd.rmsDist).toBe(rev.rmsDist);
+  });
+
   it('handles degenerate paths gracefully', () => {
     const path = [p(10, 10), p(20, 20)];
     const result = computeScores(path, path, 100);

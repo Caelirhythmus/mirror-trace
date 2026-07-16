@@ -59,7 +59,14 @@ export function computeScores(
 ): ScoreResult {
   /* ---- 1. 空间相似度 ---- */
   const h95 = hausdorff95(ref, user);
-  const { rms } = procrustesTranslate(ref, user);
+
+  /* Procrustes is index-by-index, so a stroke drawn from the opposite
+     end would get a bad RMS despite being geometrically identical.
+     Compute in both directions and take the better match. */
+  const userRev = [...user].reverse();
+  const { rms: rmsFwd } = procrustesTranslate(ref, user);
+  const { rms: rmsRev } = procrustesTranslate(ref, userRev);
+  const rms = Math.min(rmsFwd, rmsRev);
 
   /* Scale thresholds by reference path length so longer curves get
      proportionate tolerance.  The minimum floor prevents degenerate
