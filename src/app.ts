@@ -866,8 +866,13 @@ export class MirrorTraceApp {
     const state = this.strokeHistory[this.historyPointer];
     if (!state || state.raw.length < 2) return;
 
+    /* Cancel any previous replay immediately */
+    if (this.replayRafId) { cancelAnimationFrame(this.replayRafId); this.replayRafId = 0; }
+
+    /* Clear canvas and draw only the heatmap guide — hide history strokes
+       so the replay animation is clearly visible against a clean background. */
     this.clearUserCanvas();
-    this.redrawUserCanvasContent();
+    this.drawHeatmapGuide();
 
     const raw = state.raw;
     const total = raw.length;
@@ -875,10 +880,13 @@ export class MirrorTraceApp {
     const duration = Math.max(500, Math.min(3000, state.score?.elapsedMs ?? 1500));
     const ctx = this.userCtx;
 
-    ctx.strokeStyle = '#ff6b6b';
-    ctx.lineWidth = 2.5;
+    /* Use a bright, distinct colour so the replay pops against the dark background */
+    ctx.strokeStyle = '#ff4d4d';
+    ctx.lineWidth = 3.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    ctx.shadowColor = '#ff4d4d';
+    ctx.shadowBlur = 6;
 
     let idx = 0;
     const t0 = performance.now();
@@ -900,6 +908,9 @@ export class MirrorTraceApp {
       if (idx < total) {
         this.replayRafId = requestAnimationFrame(draw);
       } else {
+        /* Replay finished — remove glow so the final stroke looks clean */
+        ctx.shadowBlur = 0;
+        ctx.stroke();
         this.replayRafId = 0;
       }
     };
