@@ -200,7 +200,11 @@ class MirrorTraceApp {
     const hellToggle = document.getElementById('toggle-hell') as HTMLInputElement;
     hellToggle.addEventListener('change', () => {
       this.hellMode = hellToggle.checked;
-      if (this.hellMode) this.multiLineMode = true; // share rendering logic
+      if (this.hellMode) {
+        this.multiLineMode = true; // share rendering logic
+      } else {
+        this.multiLineMode = false; // restore on exit
+      }
       this.updateConfigVisibility();
       this.newCurve();
     });
