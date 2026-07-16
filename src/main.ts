@@ -12,6 +12,7 @@ import { rdpSimplify, resampleToCount, arcLength } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
 import { findSegment } from './matching';
 import { saveEntry, loadHistory, clearHistory, makeId, HistoryEntry } from './storage';
+import { clientToCanvas, drawSegment } from './input';
 
 /* Virtual canvas coordinate space — curves are generated in this fixed
    size and scaled to fit the actual canvas via context transform. */
@@ -704,36 +705,6 @@ class MirrorTraceApp {
     this.liveHotspotPt = null;
   }
 
-  /**
-   * Draw a single segment from `prevPoint` → `to`, with pen-pressure
-   * feedback when `pressureEnabled` is true.
-   *
-   * Pressure (0–1)       → line width        1–6 px
-   * Tilt magnitude (0–90) → alpha multiplier  1.0 → 0.6
-   */
-  private drawSegment(to: Point, pressure: number, tiltX: number, tiltY: number): void {
-    const ctx = this.userCtx;
-
-    let lineWidth = 2.5;
-    let alpha = 1;
-
-    if (this.pressureEnabled) {
-      lineWidth = 1 + pressure * 5;               // 1–6 px
-      const tiltMag = Math.min(90, Math.hypot(tiltX, tiltY));
-      alpha = 1 - (tiltMag / 90) * 0.4;            // 1.0 → 0.6
-    }
-
-    ctx.strokeStyle = `rgba(255, 107, 107, ${alpha})`;
-    ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    ctx.beginPath();
-    ctx.moveTo(this.prevPoint.x, this.prevPoint.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
-  }
-
   /** Reset score panel to default state */
   private clearScoreDisplay(): void {
     this.scoreFinalEl.textContent = '\u2014';
@@ -918,7 +889,7 @@ class MirrorTraceApp {
       this.drawHeatmapGuide();
     }
 
-    const p = this.clientToCanvas(e);
+    const p = clientToCanvas(e, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
     this.userRawPath.push(p);
     this.prevPoint = p;
   }
@@ -929,15 +900,15 @@ class MirrorTraceApp {
     const events = e.getCoalescedEvents();
     if (events.length > 0) {
       for (const ev of events) {
-        const p = this.clientToCanvas(ev);
+        const p = clientToCanvas(ev, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
         this.userRawPath.push(p);
-        this.drawSegment(p, ev.pressure, ev.tiltX, ev.tiltY);
+        drawSegment(this.userCtx, this.prevPoint, p, ev.pressure, ev.tiltX, ev.tiltY, this.pressureEnabled);
         this.prevPoint = p;
       }
     } else {
-      const p = this.clientToCanvas(e);
+      const p = clientToCanvas(e, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
       this.userRawPath.push(p);
-      this.drawSegment(p, e.pressure, e.tiltX, e.tiltY);
+      drawSegment(this.userCtx, this.prevPoint, p, e.pressure, e.tiltX, e.tiltY, this.pressureEnabled);
       this.prevPoint = p;
     }
 
@@ -1447,15 +1418,6 @@ class MirrorTraceApp {
   /*  Utility                                         */
   /* ──────────────────────────────────────────────── */
 
-  private clientToCanvas(e: PointerEvent): Point {
-    const rect = this.userCanvas.getBoundingClientRect();
-    const cssX = e.clientX - rect.left;
-    const cssY = e.clientY - rect.top;
-    return {
-      x: (cssX - this.virtOffX) / this.virtScale,
-      y: (cssY - this.virtOffY) / this.virtScale,
-    };
-  }
 }
 
 /* Boot */

@@ -307,7 +307,6 @@ describe('MirrorTraceApp — 集成测试', () => {
 
   describe('UI 可见性', () => {
     it('地狱模式隐藏 mode-switch 和 multi-toggle-row', () => {
-      const app = (window as any).__mirrorTrace as any;
       const hellToggle = document.getElementById('toggle-hell') as HTMLInputElement;
       const modeSwitch = document.getElementById('mode-switch')!;
       const multiToggleRow = document.getElementById('multi-toggle-row')!;
@@ -352,7 +351,6 @@ describe('MirrorTraceApp — 集成测试', () => {
   describe('指点事件交互', () => {
     beforeEach(() => {
       // Reset to overview mode with clean state
-      const app = (window as any).__mirrorTrace as any;
       const modeToggle = document.getElementById('toggle-mode') as HTMLInputElement;
       modeToggle.checked = false;
       modeToggle.dispatchEvent(new Event('change'));
@@ -445,7 +443,6 @@ describe('MirrorTraceApp — 集成测试', () => {
 
     beforeEach(() => {
       // Single-stroke mode for cleaner undo/redo testing
-      const app = (window as any).__mirrorTrace as any;
       const modeToggle = document.getElementById('toggle-mode') as HTMLInputElement;
       modeToggle.checked = true;
       modeToggle.dispatchEvent(new Event('change'));
@@ -525,7 +522,6 @@ describe('MirrorTraceApp — 集成测试', () => {
 
     it('新曲线按钮 (btn-newcurve) 生成新参考曲线', () => {
       const app = (window as any).__mirrorTrace as any;
-      const refPathBefore = app.refPath;
 
       const newCurveBtn = document.getElementById('btn-newcurve') as HTMLButtonElement;
       newCurveBtn.click();
@@ -546,7 +542,6 @@ describe('MirrorTraceApp — 集成测试', () => {
   describe('localStorage 持久化', () => {
     beforeEach(() => {
       // Switch to single-stroke mode (saves on each stroke)
-      const app = (window as any).__mirrorTrace as any;
       const modeToggle = document.getElementById('toggle-mode') as HTMLInputElement;
       modeToggle.checked = true;
       modeToggle.dispatchEvent(new Event('change'));
