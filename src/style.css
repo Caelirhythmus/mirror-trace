@@ -77,21 +77,25 @@ html, body {
   justify-self: center;
 }
 
-h1 {
+/* App header row: menu, theme dots, and centered title on one line */
+#app-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+#app-header h1 {
+  flex: 1;
+  text-align: center;
   font-size: 1.3rem;
   font-weight: 300;
   letter-spacing: 0.05em;
-  margin-bottom: 0.3rem;
   color: var(--text-title);
-  text-align: center;
+  margin-bottom: 0;
 }
 
 /* Top-left group: sidebar toggle + theme selector */
 #top-left-group {
-  position: absolute;
-  left: 1rem;
-  top: 0.6rem;
-  z-index: 10;
   display: flex;
   align-items: center;
   gap: 0.5rem;
