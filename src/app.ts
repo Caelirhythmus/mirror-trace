@@ -24,6 +24,7 @@ import {
 import { renderHistoryChart, renderHistoryList } from './history-manager';
 import { buildSVG, downloadPNG, buildReport, triggerDownload, textToDataURL } from './exporter';
 import { findPreset } from './presets';
+import { themes, findTheme, loadThemeName, saveThemeName, applyTheme } from './themes';
 
 /* Virtual canvas coordinate space — curves are generated in this fixed
    size and scaled to fit the actual canvas via context transform. */
@@ -220,6 +221,7 @@ export class MirrorTraceApp {
     document.getElementById('btn-clear-history')!
       .addEventListener('click', () => { clearHistory(); this.refreshHistoryPanel(); });
     this.refreshHistoryPanel();
+    this.initTheme();
 
     this.coverageEl = document.getElementById('coverage-pct')!;
     this.progressFillEl = document.getElementById('progress-fill')!;
@@ -1070,6 +1072,28 @@ export class MirrorTraceApp {
   private closeSidebar(): void {
     this.sidebarEl.classList.add('sidebar-closed');
     this.backdropEl.classList.add('sidebar-closed');
+  }
+
+  /** Initialise theme from localStorage and wire up theme-dot buttons */
+  private initTheme(): void {
+    const saved = loadThemeName();
+    const theme = findTheme(saved) || themes[0];
+    applyTheme(theme);
+
+    /* Mark the active dot and bind clicks */
+    document.querySelectorAll('.theme-dot').forEach(el => {
+      const dot = el as HTMLElement;
+      if (dot.dataset.theme === saved) dot.classList.add('active');
+      dot.addEventListener('click', () => {
+        const name = dot.dataset.theme || 'dark-blue';
+        const t = findTheme(name);
+        if (!t) return;
+        applyTheme(t);
+        saveThemeName(name);
+        document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
+        dot.classList.add('active');
+      });
+    });
   }
 
   /** Toggle the optional grid overlay on both canvases */

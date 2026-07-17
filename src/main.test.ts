@@ -15,7 +15,16 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 function createDOM(): void {
   document.body.innerHTML = `
     <div id="app">
-      <button id="btn-sidebar" title="侧栏 B/Ctrl+H">菜单</button>
+      <div id="top-left-group">
+        <button id="btn-sidebar" title="侧栏 B/Ctrl+H">菜单</button>
+        <div id="theme-selector">
+          <button class="theme-dot" data-theme="dark-blue" title="深蓝"></button>
+          <button class="theme-dot" data-theme="light" title="浅色"></button>
+          <button class="theme-dot" data-theme="dark-green" title="墨绿"></button>
+          <button class="theme-dot" data-theme="dark-purple" title="暮紫"></button>
+          <button class="theme-dot" data-theme="gray" title="现代"></button>
+        </div>
+      </div>
       <div id="canvas-container">
         <div class="canvas-wrapper">
           <h2>参考线条</h2>
