@@ -64,8 +64,8 @@ html, body {
   height: 100dvh;
   max-width: 1400px;
   margin: 0 auto;
-  overflow: hidden;
-  position: relative; /* anchor for sidebar toggle button */
+  overflow-y: auto;
+  position: relative;
 }
 
 #canvas-container,
