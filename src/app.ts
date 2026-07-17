@@ -380,6 +380,10 @@ export class MirrorTraceApp {
           case 'r': case 'R': e.preventDefault(); this.redraw(); break;
           case 'n': case 'N': e.preventDefault(); this.newCurve(); break;
           case 's': case 'S': e.preventDefault(); this.doExport('svg'); break;
+          case 'b': case 'B':
+            e.preventDefault();
+            this.toggleSidebar();
+            break;
           case '?':
             e.preventDefault();
             const overlay = document.getElementById('help-overlay')!;
