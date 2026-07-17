@@ -24,24 +24,25 @@ export function renderHistoryChart(
   dpr: number,
   entries: HistoryEntry[],
 ): void {
+  /* Chart height: fixed small value so it never dominates the sidebar.
+     Width matches parent via JS-controlled inline style to avoid any
+     CSS-layout interference with the canvas display dimensions. */
+  const H = 20;
   const w = parentWidth;
-  /* Height proportional to width so the chart keeps a landscape aspect
-     ratio regardless of sidebar width.  Clamped to avoid extremes. */
-  const h = Math.max(20, Math.min(40, Math.round(w * 0.08)));
+  canvas.style.width = w + 'px';
+  canvas.style.height = H + 'px';
+  canvas.style.maxHeight = H + 'px';
   canvas.width = w * dpr;
-  canvas.height = h * dpr;
-  /* Explicitly set the CSS display height — without it, the canvas may
-     render at 0 or an unexpected size (replaced-element default). */
-  canvas.style.height = h + 'px';
+  canvas.height = H * dpr;
   const ctx = canvas.getContext('2d')!;
   ctx.scale(dpr, dpr);
-  ctx.clearRect(0, 0, w, h);
+  ctx.clearRect(0, 0, w, H);
 
   if (entries.length < 2) {
     ctx.fillStyle = '#404060';
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('暂无数据', w / 2, h / 2 + 4);
+    ctx.fillText('暂无数据', w / 2, H / 2 + 4);
     return;
   }
 
@@ -58,10 +59,10 @@ export function renderHistoryChart(
      padL keeps room for Y-axis labels; padT/padB are proportional to h. */
   const padL = 26;
   const padR = 4;
-  const padT = Math.max(2, Math.round(h * 0.16));
-  const padB = Math.max(2, Math.round(h * 0.18));
+  const padT = Math.max(2, Math.round(H * 0.16));
+  const padB = Math.max(2, Math.round(H * 0.18));
   const plotW = w - padL - padR;
-  const plotH = h - padT - padB;
+  const plotH = H - padT - padB;
 
   /* ── Y-axis labels + grid lines ── */
 
