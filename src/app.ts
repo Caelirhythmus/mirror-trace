@@ -109,6 +109,7 @@ export class MirrorTraceApp {
   private undoBtnEl!: HTMLButtonElement;
   private redoBtnEl!: HTMLButtonElement;
   private replayBtnEl!: HTMLButtonElement;
+  private sidebarEl!: HTMLElement;
   private historyChartEl!: HTMLCanvasElement;
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
@@ -198,6 +199,11 @@ export class MirrorTraceApp {
     document.getElementById('btn-help')!
       .addEventListener('click', () => { helpOverlay.style.display = 'flex'; });
     helpOverlay.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
+
+    /* Sidebar toggle */
+    this.sidebarEl = document.getElementById('sidebar')!;
+    document.getElementById('btn-sidebar')!
+      .addEventListener('click', () => this.toggleSidebar());
 
     document.getElementById('btn-redraw')!
       .addEventListener('click', () => this.redraw());
@@ -429,8 +435,13 @@ export class MirrorTraceApp {
             (document.getElementById('toggle-color') as HTMLInputElement).click();
             break;
           case 'h': case 'H':
-            e.preventDefault();
-            (document.getElementById('toggle-heatmap') as HTMLInputElement).click();
+            if (e.ctrlKey) {
+              e.preventDefault();
+              this.toggleSidebar();
+            } else {
+              e.preventDefault();
+              (document.getElementById('toggle-heatmap') as HTMLInputElement).click();
+            }
             break;
           case 'p': case 'P':
             e.preventDefault();
@@ -1034,6 +1045,11 @@ export class MirrorTraceApp {
   /** Draw the full reference curve very faintly as a static guide on the user canvas */
   private drawHeatmapGuide(): void {
     renderDrawHeatmapGuide(this.userCtx, this.getHeatmapState());
+  }
+
+  /** Toggle the sidebar open/closed via CSS class */
+  private toggleSidebar(): void {
+    this.sidebarEl.classList.toggle('sidebar-closed');
   }
 
   /** Toggle the optional grid overlay on both canvases */

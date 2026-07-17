@@ -84,6 +84,7 @@ function createDOM(): void {
           <button id="btn-undo" disabled>↩</button>
           <button id="btn-redo" disabled>↪</button>
           <button id="btn-export">↓</button>
+          <button id="btn-sidebar">📊</button>
           <button id="btn-help">?</button>
         </div>
       </div>
@@ -102,12 +103,20 @@ function createDOM(): void {
         <label>预设 <select id="preset-select"><option value="">—</option></select></label>
       </div>
 
-      <div id="history-panel">
-        <div id="history-header">
-          <button id="btn-clear-history">清空</button>
+      <div id="sidebar" class="sidebar-closed">
+        <div id="sidebar-nav">
+          <button class="sidebar-nav-btn" disabled>🏠</button>
+          <button class="sidebar-nav-btn" disabled>📊</button>
+          <button class="sidebar-nav-btn" disabled>⚙️</button>
         </div>
-        <canvas id="history-chart" width="300" height="60" style="width:300px;height:60px"></canvas>
-        <div id="history-list"></div>
+        <div class="sidebar-divider"></div>
+        <div id="sidebar-history">
+          <div id="sidebar-history-header">
+            <button id="btn-clear-history">清空</button>
+          </div>
+          <canvas id="history-chart" width="300" height="60" style="width:300px;height:60px"></canvas>
+          <div id="history-list"></div>
+        </div>
       </div>
     </div>
   `;

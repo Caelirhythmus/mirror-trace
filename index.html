@@ -123,6 +123,7 @@
           <button id="btn-undo" disabled title="撤销 Ctrl+Z">↩</button>
           <button id="btn-redo" disabled title="重做 Ctrl+Y">↪</button>
           <button id="btn-export" title="导出">↓</button>
+          <button id="btn-sidebar" title="侧栏 H">📊</button>
           <button id="btn-help" title="快捷键 ?">?</button>
         </div>
       </div>
@@ -152,19 +153,29 @@
           <tr><td class="key">G</td><td>网格开关</td></tr>
           <tr><td class="key">C</td><td>着色开关</td></tr>
           <tr><td class="key">H</td><td>引导开关</td></tr>
+          <tr><td class="key">Ctrl+H</td><td>侧栏开关</td></tr>
           <tr><td class="key">P</td><td>笔锋开关</td></tr>
           <tr><td class="key">?</td><td>关闭此面板</td></tr>
         </table>
       </div>
     </div>
 
-    <div id="history-panel">
-      <div id="history-header">
-        <span id="history-label">历史记录</span>
-        <button id="btn-clear-history" title="清空所有记录">清空</button>
+    <!-- Toggleable sidebar: nav placeholders + history -->
+    <div id="sidebar" class="sidebar-closed">
+      <div id="sidebar-nav">
+        <button class="sidebar-nav-btn" disabled title="首页（待开发）">🏠</button>
+        <button class="sidebar-nav-btn" disabled title="统计（待开发）">📊</button>
+        <button class="sidebar-nav-btn" disabled title="设置（待开发）">⚙️</button>
       </div>
-      <canvas id="history-chart"></canvas>
-      <div id="history-list"></div>
+      <div class="sidebar-divider"></div>
+      <div id="sidebar-history">
+        <div id="sidebar-history-header">
+          <span id="sidebar-history-label">历史记录</span>
+          <button id="btn-clear-history" title="清空所有记录">清空</button>
+        </div>
+        <canvas id="history-chart"></canvas>
+        <div id="history-list"></div>
+      </div>
     </div>
 
   </div>
