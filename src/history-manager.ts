@@ -27,9 +27,12 @@ export function renderHistoryChart(
   const w = parentWidth;
   /* Height proportional to width so the chart keeps a landscape aspect
      ratio regardless of sidebar width.  Clamped to avoid extremes. */
-  const h = Math.max(16, Math.min(30, Math.round(w * 0.06)));
+  const h = Math.max(20, Math.min(40, Math.round(w * 0.08)));
   canvas.width = w * dpr;
   canvas.height = h * dpr;
+  /* Explicitly set the CSS display height — without it, the canvas may
+     render at 0 or an unexpected size (replaced-element default). */
+  canvas.style.height = h + 'px';
   const ctx = canvas.getContext('2d')!;
   ctx.scale(dpr, dpr);
   ctx.clearRect(0, 0, w, h);
