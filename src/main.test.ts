@@ -15,7 +15,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 function createDOM(): void {
   document.body.innerHTML = `
     <div id="app">
-      <button id="btn-sidebar" title="侧栏 Ctrl+H">📊</button>
+      <button id="btn-sidebar" title="侧栏 B/Ctrl+H">菜单</button>
       <div id="canvas-container">
         <div class="canvas-wrapper">
           <h2>参考线条</h2>

@@ -27,7 +27,7 @@ export function renderHistoryChart(
   /* Chart height: fixed small value so it never dominates the sidebar.
      Width matches parent via JS-controlled inline style to avoid any
      CSS-layout interference with the canvas display dimensions. */
-  const H = 20;
+  const H = 60;
   const w = parentWidth;
   canvas.style.width = w + 'px';
   canvas.style.height = H + 'px';
