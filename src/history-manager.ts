@@ -54,10 +54,12 @@ export function renderHistoryChart(
 
   /* ── Layout ── */
 
-  const padL = 26;               // room for Y-axis labels
+  /* Compact padding so the plot area doesn't vanish at sidebar scale.
+     padL keeps room for Y-axis labels; padT/padB are proportional to h. */
+  const padL = 26;
   const padR = 4;
-  const padT = 6;
-  const padB = 10;
+  const padT = Math.max(2, Math.round(h * 0.16));
+  const padB = Math.max(2, Math.round(h * 0.18));
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
