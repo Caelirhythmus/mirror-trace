@@ -110,6 +110,7 @@ export class MirrorTraceApp {
   private redoBtnEl!: HTMLButtonElement;
   private replayBtnEl!: HTMLButtonElement;
   private sidebarEl!: HTMLElement;
+  private backdropEl!: HTMLElement;
   private historyChartEl!: HTMLCanvasElement;
   private historyListEl!: HTMLElement;
   private coverageEl!: HTMLElement;
@@ -200,10 +201,14 @@ export class MirrorTraceApp {
       .addEventListener('click', () => { helpOverlay.style.display = 'flex'; });
     helpOverlay.addEventListener('click', () => { helpOverlay.style.display = 'none'; });
 
-    /* Sidebar toggle */
+    /* Sidebar toggle + backdrop */
     this.sidebarEl = document.getElementById('sidebar')!;
+    this.backdropEl = document.getElementById('sidebar-backdrop')!;
     document.getElementById('btn-sidebar')!
       .addEventListener('click', () => this.toggleSidebar());
+    this.backdropEl.addEventListener('click', () => this.closeSidebar());
+    document.getElementById('btn-close-sidebar')!
+      .addEventListener('click', () => this.closeSidebar());
 
     document.getElementById('btn-redraw')!
       .addEventListener('click', () => this.redraw());
@@ -366,6 +371,10 @@ export class MirrorTraceApp {
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.redo(); }
+      if (e.key === 'Escape' && !this.sidebarEl.classList.contains('sidebar-closed')) {
+        e.preventDefault();
+        this.closeSidebar();
+      }
       if (!e.ctrlKey && !e.metaKey) {
         switch (e.key) {
           case 'r': case 'R': e.preventDefault(); this.redraw(); break;
@@ -1047,9 +1056,16 @@ export class MirrorTraceApp {
     renderDrawHeatmapGuide(this.userCtx, this.getHeatmapState());
   }
 
-  /** Toggle the sidebar open/closed via CSS class */
+  /** Toggle the sidebar open/closed — also syncs the backdrop */
   private toggleSidebar(): void {
-    this.sidebarEl.classList.toggle('sidebar-closed');
+    const closed = this.sidebarEl.classList.toggle('sidebar-closed');
+    this.backdropEl.classList.toggle('sidebar-closed', closed);
+  }
+
+  /** Close the sidebar unconditionally */
+  private closeSidebar(): void {
+    this.sidebarEl.classList.add('sidebar-closed');
+    this.backdropEl.classList.add('sidebar-closed');
   }
 
   /** Toggle the optional grid overlay on both canvases */

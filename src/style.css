@@ -313,13 +313,28 @@ canvas.show-grid {
   cursor: default;
 }
 
+/* ─── Sidebar backdrop ─── */
+
+#sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.35);
+  transition: opacity 0.25s ease;
+}
+
+#sidebar-backdrop.sidebar-closed {
+  pointer-events: none;
+  opacity: 0;
+}
+
 /* ─── Sidebar (toggleable right panel) ─── */
 
 #sidebar {
   position: fixed;
   top: 0;
   right: 0;
-  width: 260px;
+  width: 380px;
   height: 100dvh;
   z-index: 100;
   display: flex;
@@ -388,10 +403,36 @@ canvas.show-grid {
 
 #sidebar-history-header {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.4rem;
   margin-bottom: 0.4rem;
   flex-shrink: 0;
+}
+
+#sidebar-history-label {
+  margin-right: auto;
+}
+
+#btn-close-sidebar {
+  width: 22px;
+  height: 22px;
+  border: 1px solid #3a3a5a;
+  border-radius: 3px;
+  background: #1a1a3a;
+  color: #8080a0;
+  font-size: 0.72rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#btn-close-sidebar:hover {
+  background: #3a1a2a;
+  color: #d06060;
+  border-color: #6a3a3a;
 }
 
 #sidebar-history-label {

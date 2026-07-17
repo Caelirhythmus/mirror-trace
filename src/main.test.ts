@@ -103,6 +103,8 @@ function createDOM(): void {
         <label>预设 <select id="preset-select"><option value="">—</option></select></label>
       </div>
 
+      <div id="sidebar-backdrop" class="sidebar-closed"></div>
+
       <div id="sidebar" class="sidebar-closed">
         <div id="sidebar-nav">
           <button class="sidebar-nav-btn" disabled>🏠</button>
@@ -112,6 +114,8 @@ function createDOM(): void {
         <div class="sidebar-divider"></div>
         <div id="sidebar-history">
           <div id="sidebar-history-header">
+            <span id="sidebar-history-label">历史记录</span>
+            <button id="btn-close-sidebar">✕</button>
             <button id="btn-clear-history">清空</button>
           </div>
           <canvas id="history-chart" width="300" height="60" style="width:300px;height:60px"></canvas>
