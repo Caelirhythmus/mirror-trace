@@ -77,24 +77,23 @@ html, body {
   justify-self: center;
 }
 
-/* App header row: menu, theme dots, and centered title on one line */
-#app-header {
-  display: flex;
-  align-items: center;
-}
-
-#app-header h1 {
-  flex: 1;
-  text-align: center;
+h1 {
   font-size: 1.3rem;
   font-weight: 300;
   letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
   color: var(--text-title);
-  margin-bottom: 0;
+  text-align: center;
+  position: relative;
 }
 
-/* Top-left group: sidebar toggle + theme selector */
+/* Top-left group: absolutely positioned inside h1 so it never affects
+   the title's line height or the grid row sizing. */
 #top-left-group {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -102,14 +101,14 @@ html, body {
 
 #btn-sidebar {
   width: auto;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 0.4rem;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 0.5rem;
   border: 1px solid var(--border-light);
   border-radius: 4px;
   background: var(--bg-button);
   color: var(--text-dim);
-  font-size: 0.85rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
   display: flex;
