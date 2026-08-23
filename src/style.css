@@ -61,6 +61,11 @@ html, body {
   display: grid;
   grid-template-rows: auto 1fr auto auto;
   padding: 0.3rem 1rem;
+  /* border-box is required: under the default content-box, height +
+     vertical padding made the box 100dvh + 9.6px tall, and
+     html/body overflow:hidden clipped the config panel's bottom
+     padding/border so its text sat flush against the viewport edge. */
+  box-sizing: border-box;
   height: 100dvh;
   max-width: 1400px;
   margin: 0 auto;
