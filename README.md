@@ -32,6 +32,7 @@
 - 覆盖进度条 + 历史 sparkline
 - 撤销 / 重做（Ctrl+Z / Ctrl+Y）
 - 一键预设（地狱 5-3-2 / 快速 2 条 / …）
+- 5 套可切换配色主题（UI 与画布同步换色）
 - 键盘快捷键帮助（`?` 键）
 - 本地存储持久化历史记录
 
@@ -60,17 +61,18 @@ src/
 ├── trajectory.ts       RDP 简化 + 等距重采样
 ├── matching.ts         分段匹配
 ├── storage.ts          localStorage 持久化
-├── types.ts            类型定义
+├── themes.ts           主题定义 + 画布调色板
+├── types.ts            类型与共享常量
 ├── style.css           样式
-└── *.test.ts           测试 (77 项)
+└── *.test.ts           测试 (98 项)
 ```
 
 ### 测试覆盖
 
 ```
-算法层:  scoring(8) + trajectory(14) + matching(6) + generator(27) = 55
-集成层:  main.test(22) = 22
-总计:    77 项测试
+算法层:  scoring(9) + trajectory(14) + matching(6) + generator(27) + storage(6) = 62
+集成层:  main.test(36) = 36
+总计:    98 项测试
 ```
 
 ## 开发

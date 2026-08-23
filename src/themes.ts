@@ -62,6 +62,15 @@ export const themes: Theme[] = [
       'toggle-knob-on': '#a0d0ff',
       'heatmap-color': 'rgba(74,158,255,0.10)',
       'heatmap-line': 'rgba(74,158,255,0.08)',
+      'ref-line': '#ffffff',
+      'ref-covered-dim': 'rgba(255,255,255,0.15)',
+      'ref-uncovered-dim': 'rgba(74,158,255,0.20)',
+      'match-highlight': 'rgba(255,220,80,0.35)',
+      'match-highlight-strong': 'rgba(255,240,120,0.60)',
+      'hotspot': 'rgba(255,255,100,0.75)',
+      'chart-grid': '#1a1a3a',
+      'chart-fill-top': 'rgba(74,158,255,0.25)',
+      'chart-fill-bottom': 'rgba(74,158,255,0.02)',
     },
   },
   {
@@ -112,6 +121,15 @@ export const themes: Theme[] = [
       'toggle-knob-on': '#4a9eff',
       'heatmap-color': 'rgba(74,158,255,0.12)',
       'heatmap-line': 'rgba(74,158,255,0.10)',
+      'ref-line': '#2a2a4a',
+      'ref-covered-dim': 'rgba(0,0,0,0.18)',
+      'ref-uncovered-dim': 'rgba(74,158,255,0.35)',
+      'match-highlight': 'rgba(200,150,0,0.30)',
+      'match-highlight-strong': 'rgba(160,120,0,0.55)',
+      'hotspot': 'rgba(160,120,0,0.80)',
+      'chart-grid': '#d8d8e0',
+      'chart-fill-top': 'rgba(74,158,255,0.22)',
+      'chart-fill-bottom': 'rgba(74,158,255,0.02)',
     },
   },
   {
@@ -162,6 +180,15 @@ export const themes: Theme[] = [
       'toggle-knob-on': '#70d070',
       'heatmap-color': 'rgba(80,200,120,0.10)',
       'heatmap-line': 'rgba(80,200,120,0.08)',
+      'ref-line': '#ffffff',
+      'ref-covered-dim': 'rgba(255,255,255,0.15)',
+      'ref-uncovered-dim': 'rgba(80,200,120,0.20)',
+      'match-highlight': 'rgba(255,220,80,0.35)',
+      'match-highlight-strong': 'rgba(255,240,120,0.60)',
+      'hotspot': 'rgba(255,255,100,0.75)',
+      'chart-grid': '#142014',
+      'chart-fill-top': 'rgba(80,200,120,0.25)',
+      'chart-fill-bottom': 'rgba(80,200,120,0.02)',
     },
   },
   {
@@ -212,6 +239,15 @@ export const themes: Theme[] = [
       'toggle-knob-on': '#b388ff',
       'heatmap-color': 'rgba(179,136,255,0.10)',
       'heatmap-line': 'rgba(179,136,255,0.08)',
+      'ref-line': '#ffffff',
+      'ref-covered-dim': 'rgba(255,255,255,0.15)',
+      'ref-uncovered-dim': 'rgba(179,136,255,0.20)',
+      'match-highlight': 'rgba(255,220,80,0.35)',
+      'match-highlight-strong': 'rgba(255,240,120,0.60)',
+      'hotspot': 'rgba(255,255,100,0.75)',
+      'chart-grid': '#241a3a',
+      'chart-fill-top': 'rgba(179,136,255,0.25)',
+      'chart-fill-bottom': 'rgba(179,136,255,0.02)',
     },
   },
   {
@@ -262,6 +298,15 @@ export const themes: Theme[] = [
       'toggle-knob-on': '#aaa',
       'heatmap-color': 'rgba(150,150,150,0.12)',
       'heatmap-line': 'rgba(150,150,150,0.08)',
+      'ref-line': '#ffffff',
+      'ref-covered-dim': 'rgba(255,255,255,0.15)',
+      'ref-uncovered-dim': 'rgba(150,150,150,0.25)',
+      'match-highlight': 'rgba(255,220,80,0.35)',
+      'match-highlight-strong': 'rgba(255,240,120,0.60)',
+      'hotspot': 'rgba(255,255,100,0.75)',
+      'chart-grid': '#2a2a2a',
+      'chart-fill-top': 'rgba(150,150,150,0.25)',
+      'chart-fill-bottom': 'rgba(150,150,150,0.02)',
     },
   },
 ];
@@ -297,4 +342,108 @@ export function saveThemeName(name: string): void {
 /** Find a theme by name */
 export function findTheme(name: string): Theme | undefined {
   return themes.find(t => t.name === name);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Canvas palette                                                     */
+/*                                                                     */
+/*  Canvas drawing code can't consume CSS custom properties directly,  */
+/*  so the active theme is also exposed as a flat colour palette.      */
+/* ------------------------------------------------------------------ */
+
+export interface CanvasPalette {
+  /** Reference line when the colour toggle is off */
+  refLine: string;
+  /** Dimmed style for covered reference segments */
+  refCoveredDim: string;
+  /** Dimmed style for uncovered segments (overview coverage view) */
+  refUncoveredDim: string;
+  /** Latest-match highlight, wide underlay */
+  matchHighlight: string;
+  /** Latest-match highlight, inner line */
+  matchHighlightStrong: string;
+  /** Pen-position hotspot crosshair */
+  hotspot: string;
+  /** Heatmap guide, single reference path */
+  heatmapColor: string;
+  /** Heatmap guide, multi-line mode */
+  heatmapLine: string;
+  /** User stroke ink (hex) */
+  strokeDefault: string;
+  /** Replay animation ink (hex) */
+  strokeReplay: string;
+  /** Processed-stroke overlay */
+  strokeProcessed: string;
+  /** History chart grid line */
+  chartGrid: string;
+  /** History chart axis label text */
+  chartLabel: string;
+  /** History chart empty-state text */
+  chartNoData: string;
+  /** History chart area fill, top */
+  chartFillTop: string;
+  /** History chart area fill, bottom */
+  chartFillBottom: string;
+  accent: string;
+  accentGold: string;
+}
+
+const PALETTE_FALLBACKS: CanvasPalette = {
+  refLine: '#ffffff',
+  refCoveredDim: 'rgba(255,255,255,0.15)',
+  refUncoveredDim: 'rgba(74,158,255,0.20)',
+  matchHighlight: 'rgba(255,220,80,0.35)',
+  matchHighlightStrong: 'rgba(255,240,120,0.60)',
+  hotspot: 'rgba(255,255,100,0.75)',
+  heatmapColor: 'rgba(74,158,255,0.10)',
+  heatmapLine: 'rgba(74,158,255,0.08)',
+  strokeDefault: '#ff6b6b',
+  strokeReplay: '#ff4d4d',
+  strokeProcessed: 'rgba(255,255,100,0.45)',
+  chartGrid: '#1a1a3a',
+  chartLabel: '#505068',
+  chartNoData: '#404060',
+  chartFillTop: 'rgba(74,158,255,0.25)',
+  chartFillBottom: 'rgba(74,158,255,0.02)',
+  accent: '#4a9eff',
+  accentGold: '#ffd700',
+};
+
+/** Build the canvas palette from a theme; missing variables fall back
+    to the dark-blue defaults so partial themes never break rendering. */
+export function paletteFromTheme(theme: Theme): CanvasPalette {
+  const v = theme.vars;
+  const pick = (varName: string, fallback: string): string =>
+    v[varName] ?? fallback;
+  return {
+    refLine: pick('ref-line', PALETTE_FALLBACKS.refLine),
+    refCoveredDim: pick('ref-covered-dim', PALETTE_FALLBACKS.refCoveredDim),
+    refUncoveredDim: pick('ref-uncovered-dim', PALETTE_FALLBACKS.refUncoveredDim),
+    matchHighlight: pick('match-highlight', PALETTE_FALLBACKS.matchHighlight),
+    matchHighlightStrong: pick('match-highlight-strong', PALETTE_FALLBACKS.matchHighlightStrong),
+    hotspot: pick('hotspot', PALETTE_FALLBACKS.hotspot),
+    heatmapColor: pick('heatmap-color', PALETTE_FALLBACKS.heatmapColor),
+    heatmapLine: pick('heatmap-line', PALETTE_FALLBACKS.heatmapLine),
+    strokeDefault: pick('stroke-default', PALETTE_FALLBACKS.strokeDefault),
+    strokeReplay: pick('stroke-replay', PALETTE_FALLBACKS.strokeReplay),
+    strokeProcessed: pick('stroke-processed', PALETTE_FALLBACKS.strokeProcessed),
+    chartGrid: pick('chart-grid', PALETTE_FALLBACKS.chartGrid),
+    chartLabel: pick('text-chart-label2', PALETTE_FALLBACKS.chartLabel),
+    chartNoData: pick('text-chart-label', PALETTE_FALLBACKS.chartNoData),
+    chartFillTop: pick('chart-fill-top', PALETTE_FALLBACKS.chartFillTop),
+    chartFillBottom: pick('chart-fill-bottom', PALETTE_FALLBACKS.chartFillBottom),
+    accent: pick('accent', PALETTE_FALLBACKS.accent),
+    accentGold: pick('accent-gold', PALETTE_FALLBACKS.accentGold),
+  };
+}
+
+/** Parse '#rgb' or '#rrggbb' into RGB components (fallback: red ink). */
+export function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const h = hex.replace('#', '').trim();
+  const full = h.length === 3
+    ? h.split('').map(c => c + c).join('')
+    : h;
+  const n = parseInt(full, 16);
+  if (!Number.isFinite(n) || full.length !== 6) return { r: 255, g: 107, b: 107 };
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }

@@ -266,7 +266,7 @@ canvas.show-grid {
   height: 100%;
   width: 0%;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--progress-start), #50c878);
+  background: linear-gradient(90deg, var(--progress-start), var(--progress-end));
   transition: width 0.3s ease;
 }
 
@@ -338,6 +338,18 @@ canvas.show-grid {
 .config-row input[type="number"]:focus {
   outline: none;
   border-color: var(--bg-toggle-on);
+}
+
+/* Grid-density input lives in the ctrl-group (not a .config-row);
+   display is toggled inline by JS — only looks are themed here. */
+#input-grid-size {
+  width: 48px;
+  padding: 1px 3px;
+  border: 1px solid var(--border-light);
+  border-radius: 3px;
+  background: var(--bg-canvas);
+  color: var(--text-strong);
+  font-size: 0.75rem;
 }
 
 /* ─── Toggle switch ─── */

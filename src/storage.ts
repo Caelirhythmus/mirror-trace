@@ -22,7 +22,21 @@ const STORAGE_KEY = 'mirror-trace-history';
 const MAX_ENTRIES = 12;
 
 /* ------------------------------------------------------------------ */
-/*  Public API                                                         */
+/*  Validation                                                          */
+/* ------------------------------------------------------------------ */
+
+/** Entry shape check — guards against corrupted or legacy localStorage
+    data (a bad entry would otherwise poison the chart with NaNs or
+    make saveEntry throw on a non-array payload). */
+function isValidEntry(e: unknown): e is HistoryEntry {
+  if (typeof e !== 'object' || e === null) return false;
+  const rec = e as Record<string, unknown>;
+  return typeof rec.finalScore === 'number'
+    && typeof rec.timestamp === 'number';
+}
+
+/* ------------------------------------------------------------------ */
+/*  Public API                                                          */
 /* ------------------------------------------------------------------ */
 
 /** Load all stored history entries (newest last). */
@@ -30,7 +44,9 @@ export function loadHistory(): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as HistoryEntry[];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isValidEntry);
   } catch {
     return [];
   }

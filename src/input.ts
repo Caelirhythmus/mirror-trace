@@ -40,6 +40,9 @@ export function clientToCanvas(
  * Draw a single segment of the user's stroke with optional pressure /
  * tilt styling.  This is called during pointer-move so that the user
  * sees the stroke build up in real-time.
+ *
+ * `strokeRGB` carries the theme ink colour as RGB components so the
+ * tilt-dependent alpha can be applied without re-parsing the hex value.
  */
 export function drawSegment(
   ctx: CanvasRenderingContext2D,
@@ -49,6 +52,7 @@ export function drawSegment(
   tiltX: number,
   tiltY: number,
   pressureEnabled: boolean,
+  strokeRGB: { r: number; g: number; b: number },
 ): void {
   let lineWidth = 2.5;
   let alpha = 1;
@@ -59,7 +63,7 @@ export function drawSegment(
     alpha = 1 - (tiltMag / 90) * 0.4;            // 1.0 → 0.6
   }
 
-  ctx.strokeStyle = `rgba(255, 107, 107, ${alpha})`;
+  ctx.strokeStyle = `rgba(${strokeRGB.r}, ${strokeRGB.g}, ${strokeRGB.b}, ${alpha})`;
   ctx.lineWidth = lineWidth;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

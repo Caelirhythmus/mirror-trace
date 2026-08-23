@@ -6,6 +6,7 @@
  */
 
 import { HistoryEntry } from './storage';
+import { CanvasPalette } from './themes';
 
 /* ------------------------------------------------------------------ */
 /*  History chart (sparkline)                                          */
@@ -23,11 +24,12 @@ export function renderHistoryChart(
   parentWidth: number,
   dpr: number,
   entries: HistoryEntry[],
+  palette: CanvasPalette,
 ): void {
-  /* Chart height: fixed small value so it never dominates the sidebar.
-     Width matches parent via JS-controlled inline style to avoid any
-     CSS-layout interference with the canvas display dimensions. */
-  const H = 60;
+  /* Chart height: fixed so the chart never competes with the history
+     list for sidebar space.  Width follows the parent via JS-controlled
+     inline style to avoid CSS-layout interference with the canvas. */
+  const H = 100;
   const w = parentWidth;
   canvas.style.width = w + 'px';
   canvas.style.height = H + 'px';
@@ -39,7 +41,7 @@ export function renderHistoryChart(
   ctx.clearRect(0, 0, w, H);
 
   if (entries.length < 2) {
-    ctx.fillStyle = '#404060';
+    ctx.fillStyle = palette.chartNoData;
     ctx.font = '11px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('暂无数据', w / 2, H / 2 + 4);
@@ -68,7 +70,7 @@ export function renderHistoryChart(
 
   const labelPositions = [minS, Math.round((minS + maxS) / 2), maxS];
 
-  ctx.strokeStyle = '#1a1a3a';
+  ctx.strokeStyle = palette.chartGrid;
   ctx.lineWidth = 1;
   ctx.font = '9px sans-serif';
   ctx.textAlign = 'right';
@@ -79,7 +81,7 @@ export function renderHistoryChart(
     /* Grid line */
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(w - padR, y); ctx.stroke();
     /* Label */
-    ctx.fillStyle = '#505068';
+    ctx.fillStyle = palette.chartLabel;
     ctx.fillText(String(v), padL - 3, y);
   }
 
@@ -95,8 +97,8 @@ export function renderHistoryChart(
   ctx.lineTo(padL + plotW, padT + plotH);
   ctx.closePath();
   const grad = ctx.createLinearGradient(0, padT, 0, padT + plotH);
-  grad.addColorStop(0, 'rgba(74, 158, 255, 0.25)');
-  grad.addColorStop(1, 'rgba(74, 158, 255, 0.02)');
+  grad.addColorStop(0, palette.chartFillTop);
+  grad.addColorStop(1, palette.chartFillBottom);
   ctx.fillStyle = grad;
   ctx.fill();
 
@@ -108,13 +110,13 @@ export function renderHistoryChart(
     const y = padT + plotH * (1 - (s - minS) / range);
     i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
   });
-  ctx.strokeStyle = '#4a9eff';
+  ctx.strokeStyle = palette.accent;
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
   /* ── Regular dots ── */
 
-  ctx.fillStyle = '#4a9eff';
+  ctx.fillStyle = palette.accent;
   scores.forEach((s, i) => {
     const x = padL + (i / (scores.length - 1)) * plotW;
     const y = padT + plotH * (1 - (s - minS) / range);
@@ -128,11 +130,11 @@ export function renderHistoryChart(
   const maxY = padT + plotH * (1 - (maxS - minS) / range);
 
   /* Brighter, bigger dot */
-  ctx.fillStyle = '#ffd700';
+  ctx.fillStyle = palette.accentGold;
   ctx.beginPath(); ctx.arc(maxX, maxY, 4, 0, Math.PI * 2); ctx.fill();
 
   /* Value label above the dot */
-  ctx.fillStyle = '#ffd700';
+  ctx.fillStyle = palette.accentGold;
   ctx.font = 'bold 10px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';

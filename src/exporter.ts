@@ -4,11 +4,8 @@
  * Supports SVG, PNG, and text-report export of the current drawing.
  */
 
-import { Point } from './types';
+import { Point, VIRTUAL_W, VIRTUAL_H } from './types';
 import { HistoryEntry } from './storage';
-
-const VIRTUAL_W = 800;
-const VIRTUAL_H = 600;
 
 /* ------------------------------------------------------------------ */
 /*  SVG export                                                         */
@@ -131,9 +128,4 @@ export function triggerDownload(url: string, filename: string): void {
 /** Build a data URL for a text/plain string */
 export function textToDataURL(text: string): string {
   return 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
-}
-
-/** Check if user strokes exist */
-export function hasUserStrokes(userStrokes: readonly (readonly Point[])[]): boolean {
-  return userStrokes.some(s => s.length >= 2);
 }

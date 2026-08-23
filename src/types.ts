@@ -3,13 +3,7 @@ export interface Point {
   y: number;
 }
 
-/** Configuration for the arch curve used in single-stroke mode */
-export interface ArchConfig {
-  /** Relative curvature: 0 = straight, 0.15 = 15 % of canvas height, default 0.15 */
-  curvature: number;
-  /** Minimum curvature for random generation */
-  minCurvature: number;
-  /** Maximum curvature for random generation */
-  maxCurvature: number;
-}
-
+/* Virtual canvas coordinate space — curves are generated in this fixed
+   size and scaled to fit the actual canvas via context transform. */
+export const VIRTUAL_W = 800;
+export const VIRTUAL_H = 600;

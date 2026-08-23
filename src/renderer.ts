@@ -6,6 +6,7 @@
  */
 
 import { Point } from './types';
+import { CanvasPalette } from './themes';
 
 /* ------------------------------------------------------------------ */
 /*  State interfaces                                                    */
@@ -25,6 +26,8 @@ export interface RefCanvasState {
   liveHotspotPt: Point | null;
   heatmapEnabled: boolean;
   colorEnabled: boolean;
+  /** Theme colours for canvas drawing */
+  palette: CanvasPalette;
 }
 
 /** State needed to render the heatmap guide on the user canvas */
@@ -34,6 +37,8 @@ export interface HeatmapState {
   refPath: Point[];
   singleStrokeMode: boolean;
   heatmapEnabled: boolean;
+  /** Theme colours for canvas drawing */
+  palette: CanvasPalette;
 }
 
 /* ------------------------------------------------------------------ */
@@ -135,16 +140,16 @@ export function drawRefCanvas(
       if (line.length < 2) continue;
       const baseColor = state.colorEnabled
         ? (state.multiLineColors[li] || colors[li % colors.length])
-        : '#ffffff';
+        : state.palette.refLine;
       const covered = state.multiLineCovered[li] || false;
       const segCov = state.complexLineCoverage[li];
 
       if (segCov) {
         /* Complex curve: dim covered segments, highlight uncovered */
-        drawLineRanges(ctx, line, 'rgba(255,255,255,0.15)', 1.5, i => segCov[i]);
+        drawLineRanges(ctx, line, state.palette.refCoveredDim, 1.5, i => segCov[i]);
         drawLineRanges(ctx, line, baseColor, 2.5, i => !segCov[i]);
       } else {
-        ctx.strokeStyle = covered ? 'rgba(255, 255, 255, 0.15)' : baseColor;
+        ctx.strokeStyle = covered ? state.palette.refCoveredDim : baseColor;
         ctx.lineWidth = covered ? 1.5 : 2.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -166,28 +171,28 @@ export function drawRefCanvas(
     state.covered.some(v => v);
 
   if (!hasCoverage) {
-    drawRefRange(ctx, state.refPath, 0, state.refPath.length - 1, '#4a9eff', 2);
+    drawRefRange(ctx, state.refPath, 0, state.refPath.length - 1, state.palette.accent, 2);
     return;
   }
 
   /* Uncovered portions: dimmed */
-  drawRanges(ctx, state.refPath, 'rgba(74, 158, 255, 0.20)', 2, i => !state.covered[i]);
-  /* Covered portions: bright blue */
-  drawRanges(ctx, state.refPath, '#4a9eff', 2.5, i => state.covered[i]);
+  drawRanges(ctx, state.refPath, state.palette.refUncoveredDim, 2, i => !state.covered[i]);
+  /* Covered portions: bright accent */
+  drawRanges(ctx, state.refPath, state.palette.accent, 2.5, i => state.covered[i]);
 
   /* Latest-match highlight */
   if (state.latestMatchStart >= 0 && state.latestMatchEnd >= state.latestMatchStart) {
     drawRefRange(ctx, state.refPath, state.latestMatchStart, state.latestMatchEnd,
-      'rgba(255, 220, 80, 0.35)', 6);
+      state.palette.matchHighlight, 6);
     drawRefRange(ctx, state.refPath, state.latestMatchStart, state.latestMatchEnd,
-      'rgba(255, 240, 120, 0.60)', 3);
+      state.palette.matchHighlightStrong, 3);
   }
 
   /* Pen-position hotspot crosshair */
   if (state.liveHotspotPt !== null && state.heatmapEnabled) {
     const hp = state.liveHotspotPt;
     const s = 6;
-    ctx.strokeStyle = 'rgba(255, 255, 100, 0.75)';
+    ctx.strokeStyle = state.palette.hotspot;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(hp.x - s, hp.y); ctx.lineTo(hp.x + s, hp.y);
@@ -214,7 +219,7 @@ export function drawHeatmapGuide(
     ctx.lineWidth = 1.5;
     for (const line of state.multiLines) {
       if (line.length < 2) continue;
-      ctx.strokeStyle = 'rgba(74, 158, 255, 0.08)';
+      ctx.strokeStyle = state.palette.heatmapLine;
       ctx.beginPath();
       ctx.moveTo(line[0].x, line[0].y);
       for (let i = 1; i < line.length; i++) {
@@ -226,7 +231,7 @@ export function drawHeatmapGuide(
   }
 
   if (state.refPath.length < 2) return;
-  ctx.strokeStyle = 'rgba(74, 158, 255, 0.10)';
+  ctx.strokeStyle = state.palette.heatmapColor;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(state.refPath[0].x, state.refPath[0].y);
@@ -240,13 +245,14 @@ export function drawHeatmapGuide(
 /*  User stroke rendering                                              */
 /* ------------------------------------------------------------------ */
 
-/** Draw the processed (RDP + resampled) user stroke as a white overlay */
+/** Draw the processed (RDP + resampled) user stroke as an overlay */
 export function drawUserProcessed(
   ctx: CanvasRenderingContext2D,
   path: readonly Point[],
+  color: string,
 ): void {
   if (path.length < 2) return;
-  ctx.strokeStyle = 'rgba(255, 255, 100, 0.45)';
+  ctx.strokeStyle = color;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -262,9 +268,10 @@ export function drawUserProcessed(
 export function replayRawStroke(
   ctx: CanvasRenderingContext2D,
   raw: readonly Point[],
+  color: string,
 ): void {
   if (raw.length < 2) return;
-  ctx.strokeStyle = '#ff6b6b';
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
@@ -274,46 +281,4 @@ export function replayRawStroke(
     ctx.lineTo(raw[i].x, raw[i].y);
   }
   ctx.stroke();
-}
-
-/* ------------------------------------------------------------------ */
-/*  Multi-line matching visual                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Redraw the reference canvas with a freshly matched multi-line index,
- * dimming all other lines except the matched one.
- */
-export function highlightMatchedLine(
-  ctx: CanvasRenderingContext2D,
-  virtW: number,
-  virtH: number,
-  colors: readonly string[],
-  multiLines: Point[][],
-  multiLineColors: string[],
-  matchedIdx: number,
-): void {
-  ctx.clearRect(0, 0, virtW, virtH);
-  for (let li = 0; li < multiLines.length; li++) {
-    const line = multiLines[li];
-    if (line.length < 2) continue;
-    if (li === matchedIdx) {
-      /* Matched line — draw bright */
-      const color = multiLineColors[li] || colors[li % colors.length];
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 3;
-    } else {
-      /* Other lines — dim */
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-      ctx.lineWidth = 1;
-    }
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    ctx.beginPath();
-    ctx.moveTo(line[0].x, line[0].y);
-    for (let i = 1; i < line.length; i++) {
-      ctx.lineTo(line[i].x, line[i].y);
-    }
-    ctx.stroke();
-  }
 }

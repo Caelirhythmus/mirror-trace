@@ -6,7 +6,7 @@
  *  - 右侧：用户临摹，RDP 压缩 → 等距重采样
  */
 
-import { Point } from './types';
+import { Point, VIRTUAL_W, VIRTUAL_H } from './types';
 import { generateRandomCurve, generateRotatedArch, generateMultiLines } from './generator';
 import { rdpSimplify, resampleToCount } from './trajectory';
 import { computeScores, ScoreResult } from './scoring';
@@ -24,12 +24,10 @@ import {
 import { renderHistoryChart, renderHistoryList } from './history-manager';
 import { buildSVG, downloadPNG, buildReport, triggerDownload, textToDataURL } from './exporter';
 import { findPreset } from './presets';
-import { themes, findTheme, loadThemeName, saveThemeName, applyTheme } from './themes';
-
-/* Virtual canvas coordinate space — curves are generated in this fixed
-   size and scaled to fit the actual canvas via context transform. */
-const VIRTUAL_W = 800;
-const VIRTUAL_H = 600;
+import {
+  themes, findTheme, loadThemeName, saveThemeName, applyTheme,
+  paletteFromTheme, hexToRgb, CanvasPalette, Theme,
+} from './themes';
 
 const ML_COLORS = [
   '#ff6b6b', '#4a9eff', '#50c878', '#ffd700',
@@ -37,6 +35,13 @@ const ML_COLORS = [
   '#98fb98', '#ff69b4', '#87ceeb', '#dda0dd',
   '#f0e68c', '#90ee90', '#ffb347', '#add8e6',
 ];
+
+/* Point-count threshold separating complex curves (segment-level
+   coverage in hell mode) from simple lines.  Arch/straight lines are
+   sampled at t = 0.015 (~68 points); complex curves at t = 0.01 per
+   Bézier segment (≥ 101 points for a single segment).  80 sits safely
+   between the two sampling densities. */
+const COMPLEX_LINE_MIN_POINTS = 80;
 
 /* ------------------------------------------------------------------ */
 /*  Stroke history model                                               */
@@ -48,6 +53,12 @@ interface StrokeState {
   score: ScoreResult | null;
   /** Index of the matched multi-line (-1 if not in multi-line mode) */
   matchedLineIdx: number;
+  /** Reference sub-path this stroke was scored against (full-eval input) */
+  refSubPath: Point[];
+  /** performance.now() at pointerdown */
+  startTime: number;
+  /** performance.now() at pointerup */
+  endTime: number;
 }
 
 export class MirrorTraceApp {
@@ -95,6 +106,11 @@ export class MirrorTraceApp {
   /** Number of cubic-Bézier segments for overview-mode complex curve */
   private complexSegments = 3;
 
+  /* canvas colours from the active theme */
+  private palette: CanvasPalette = paletteFromTheme(themes[0]);
+  /** User-stroke ink as RGB components (alpha varies per tilt) */
+  private strokeRGB = hexToRgb(themes[0].vars['stroke-default'] ?? '#ff6b6b');
+
   /* stroke history for undo / redo */
   strokeHistory: StrokeState[] = [];
   historyPointer = -1;
@@ -130,11 +146,9 @@ export class MirrorTraceApp {
   private complexLineCoverage: (boolean[] | null)[] = [];
   private coveragePct = 0;
   private fullEvalReady = false;
-
-  /* full-evaluation data collection */
-  private allRawPaths: Point[][] = [];
-  private globalStartTime = 0;
-  private segmentRecords: { score: ScoreResult; subPathLen: number }[] = [];
+  /** Latest full-evaluation score — null when it no longer reflects
+      the visible strokes (used by the report export). */
+  private lastFullEval: ScoreResult | null = null;
 
   /* latest segment match (for visual highlight on ref canvas) */
   private latestMatchStart = -1;
@@ -371,11 +385,30 @@ export class MirrorTraceApp {
 
     /* Keyboard shortcuts */
     document.addEventListener('keydown', (e) => {
+      /* Skip while typing in form controls — digits typed into the
+         line-count inputs would otherwise switch modes and reset the
+         canvas, and Ctrl+Z would undo the app instead of the text. */
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'SELECT'
+        || t.tagName === 'TEXTAREA' || t.isContentEditable)) {
+        return;
+      }
       if (e.ctrlKey && e.key === 'z') { e.preventDefault(); this.undo(); }
       if (e.ctrlKey && e.key === 'y') { e.preventDefault(); this.redo(); }
-      if (e.key === 'Escape' && !this.sidebarEl.classList.contains('sidebar-closed')) {
+      if (e.key === 'Escape') {
         e.preventDefault();
-        this.closeSidebar();
+        /* Close overlays first; only fall through to the sidebar when
+           nothing else was open. */
+        const help = document.getElementById('help-overlay')!;
+        const menu = document.getElementById('export-menu')!;
+        const helpOpen = help.style.display === 'flex';
+        const menuOpen = menu.style.display === 'flex';
+        if (helpOpen) help.style.display = 'none';
+        if (menuOpen) menu.style.display = 'none';
+        if (!helpOpen && !menuOpen
+          && !this.sidebarEl.classList.contains('sidebar-closed')) {
+          this.closeSidebar();
+        }
       }
       if (!e.ctrlKey && !e.metaKey) {
         switch (e.key) {
@@ -486,15 +519,19 @@ export class MirrorTraceApp {
     this.initDprListener();
   }
 
-  /** Listen for devicePixelRatio changes (browser zoom, external monitor DPI scaling) */
+  /** Listen for devicePixelRatio changes (browser zoom, external monitor DPI scaling).
+      The media query matches the *current* DPR, so after each change it must
+      be re-armed for the new value — otherwise only the first change is caught. */
   private initDprListener(): void {
-    let mq: MediaQueryList;
+    const onChange = () => {
+      listen();
+      this.resizeCanvases();
+    };
+    let mq: MediaQueryList | undefined;
     const listen = () => {
-      mq?.removeEventListener('change', listen);
+      mq?.removeEventListener('change', onChange);
       mq = matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
-      mq.addEventListener('change', () => {
-        this.resizeCanvases();
-      });
+      mq.addEventListener('change', onChange);
     };
     listen();
   }
@@ -560,8 +597,16 @@ export class MirrorTraceApp {
           if (state.processed.length >= 2) this.drawUserProcessed();
         }
       } else if (this.multiLineMode) {
-        /* Multi-line: rebuild coverage from stroke history */
+        /* Multi-line: rebuild coverage and restore the visible stroke.
+           Steady state shows only the latest stroke (onPointerDown
+           clears the canvas per stroke), so mirror that here. */
         this.rebuildMultiLineCoverage();
+        const state = this.strokeHistory[this.historyPointer];
+        if (state) {
+          this.replayRawStroke(state);
+          this.userProcessedPath = [...state.processed];
+          if (state.processed.length >= 2) this.drawUserProcessed();
+        }
         this.updateCoverageUI();
         this.drawRefCanvas();
       } else {
@@ -591,7 +636,7 @@ export class MirrorTraceApp {
 
     /* ── In-progress partial stroke (if currently drawing) ── */
     if (this.isDrawing && this.userRawPath.length >= 2) {
-      ctx.strokeStyle = '#ff6b6b';
+      ctx.strokeStyle = this.palette.strokeDefault;
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -623,7 +668,7 @@ export class MirrorTraceApp {
       this.multiLineColors = this.multiLines.map((_, i) => ML_COLORS[i % ML_COLORS.length]);
       /* In hell mode, detect complex curves (many points) for segment-level coverage */
       this.complexLineCoverage = this.hellMode
-        ? this.multiLines.map(line => line.length > 80 ? new Array(line.length).fill(false) : null)
+        ? this.multiLines.map(line => line.length > COMPLEX_LINE_MIN_POINTS ? new Array(line.length).fill(false) : null)
         : [];
       this.coveragePct = 0;
       this.fullEvalReady = false;
@@ -639,11 +684,9 @@ export class MirrorTraceApp {
       this.coveragePct = 0;
       this.fullEvalReady = false;
     }
-    this.allRawPaths = [];
-    this.globalStartTime = 0;
-    this.segmentRecords = [];
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
+    this.lastFullEval = null;
     this.evalBadgesEl.style.display = 'none';
     this.evalBadgesEl.innerHTML = '';
     /* Force layout recalculation so virtScale/virtOffX/Y reflect the
@@ -667,9 +710,7 @@ export class MirrorTraceApp {
       this.multiLineCovered = new Array(this.multiLines.length).fill(false);
       this.coveragePct = 0;
       this.fullEvalReady = false;
-      this.allRawPaths = [];
-      this.globalStartTime = 0;
-      this.segmentRecords = [];
+      this.lastFullEval = null;
       this.evalBadgesEl.style.display = 'none';
       this.evalBadgesEl.innerHTML = '';
       /* Reset hell-mode complex line segment coverage */
@@ -690,9 +731,7 @@ export class MirrorTraceApp {
     this.covered = new Array(this.refPath.length).fill(false);
     this.coveragePct = 0;
     this.fullEvalReady = false;
-    this.allRawPaths = [];
-    this.globalStartTime = 0;
-    this.segmentRecords = [];
+    this.lastFullEval = null;
     this.latestMatchStart = -1;
     this.latestMatchEnd = -1;
     this.liveHotspotPt = null;
@@ -714,8 +753,10 @@ export class MirrorTraceApp {
   private doExport(format: string): void {
     const history = loadHistory(); // from storage
 
-    /* Collect user strokes from stroke history */
-    const userStrokes = this.strokeHistory.map(s => s.raw);
+    /* Collect the visible user strokes (exclude the redo future) */
+    const userStrokes = this.strokeHistory
+      .slice(0, this.historyPointer + 1)
+      .map(s => s.raw);
 
     switch (format) {
       case 'svg': {
@@ -728,29 +769,27 @@ export class MirrorTraceApp {
         break;
       }
       case 'report': {
-        /* Get latest score */
-        let finalScore = 0, spatialScore = 0, timeScore = 0, elapsedMs = 0;
-        let idealMs = 0, hDist = 0, rms = 0;
+        /* Prefer the full-evaluation score when it reflects the visible strokes */
+        const s = (this.fullEvalReady && this.lastFullEval)
+          ? this.lastFullEval
+          : (this.historyPointer >= 0 ? this.strokeHistory[this.historyPointer].score : null);
+
         let mode = '?';
-        if (this.historyPointer >= 0) {
-          const s = this.strokeHistory[this.historyPointer].score;
-          if (s) {
-            finalScore = s.finalScore;
-            spatialScore = s.spatialScore;
-            timeScore = s.timeScore;
-            elapsedMs = s.elapsedMs;
-            idealMs = s.idealMs;
-            hDist = s.hausdorff95Dist;
-            rms = s.rmsDist;
-          }
-        }
         if (this.hellMode) mode = '地狱';
         else if (this.multiLineMode) mode = '多条';
         else if (this.singleStrokeMode) mode = '单笔';
         else mode = '概括';
 
-        const report = buildReport(finalScore, spatialScore, timeScore,
-          elapsedMs, idealMs, hDist, rms, mode, history);
+        const report = buildReport(
+          s ? s.finalScore : 0,
+          s ? s.spatialScore : 0,
+          s ? s.timeScore : 0,
+          s ? s.elapsedMs : 0,
+          s ? s.idealMs : 0,
+          s ? s.hausdorff95Dist : 0,
+          s ? s.rmsDist : 0,
+          mode, history,
+        );
         triggerDownload(textToDataURL(report), 'mirror-trace-report.txt');
         break;
       }
@@ -793,9 +832,10 @@ export class MirrorTraceApp {
       this.complexParamsEl.style.display = 'none';
       document.getElementById('mode-switch')!.style.display = 'inline-flex';
     } else {
-      /* Overview mode */
+      /* Overview mode — hell requires single-stroke rendering, so its
+         toggle is hidden here to avoid the mixed state it would create. */
       document.getElementById('multi-toggle-row')!.style.display = 'none';
-      document.getElementById('hell-toggle-row')!.style.display = 'flex';
+      document.getElementById('hell-toggle-row')!.style.display = 'none';
       this.multiParamsEl.style.display = 'none';
       this.hellParamsEl.style.display = 'none';
       this.complexParamsEl.style.display = 'flex';
@@ -822,6 +862,7 @@ export class MirrorTraceApp {
       liveHotspotPt: this.liveHotspotPt,
       heatmapEnabled: this.heatmapEnabled,
       colorEnabled: this.colorEnabled,
+      palette: this.palette,
     };
   }
 
@@ -833,6 +874,7 @@ export class MirrorTraceApp {
       refPath: this.refPath,
       singleStrokeMode: this.singleStrokeMode,
       heatmapEnabled: this.heatmapEnabled,
+      palette: this.palette,
     };
   }
 
@@ -844,8 +886,19 @@ export class MirrorTraceApp {
     renderDrawRefCanvas(this.refCtx, VIRTUAL_W, VIRTUAL_H, ML_COLORS, this.getRefCanvasState());
   }
 
+  /** Clear the ENTIRE user-canvas buffer in device pixels, including the
+      letterbox area outside the virtual 800×600 region — strokes drawn
+      beyond the canvas edges (pointer capture keeps events while the pen
+      is outside) would otherwise leave marks that survive clears. */
+  private clearUserBuffer(): void {
+    this.userCtx.save();
+    this.userCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.userCtx.clearRect(0, 0, this.userCanvas.width, this.userCanvas.height);
+    this.userCtx.restore();
+  }
+
   private clearUserCanvas(): void {
-    this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
+    this.clearUserBuffer();
     this.userRawPath = [];
     this.userProcessedPath = [];
     this.prevPoint = { x: 0, y: 0 };
@@ -879,7 +932,7 @@ export class MirrorTraceApp {
 
   /** Highlight process-path overlay */
   private drawUserProcessed(): void {
-    renderDrawUserProcessed(this.userCtx, this.userProcessedPath);
+    renderDrawUserProcessed(this.userCtx, this.userProcessedPath, this.palette.strokeProcessed);
   }
 
   /**
@@ -906,14 +959,14 @@ export class MirrorTraceApp {
     const duration = Math.max(500, Math.min(3000, state.score?.elapsedMs ?? 1500));
     const ctx = this.userCtx;
 
-    /* Use a bright, distinct colour with a glow so the replay pops against
-       the dark background.  lineWidth matches replayRawStroke (2.5) since
-       the original per-segment pressure data is not preserved in history. */
-    ctx.strokeStyle = '#ff4d4d';
+    /* Use a bright, distinct colour with a glow so the replay pops.
+       lineWidth matches replayRawStroke (2.5) since the original
+       per-segment pressure data is not preserved in history. */
+    ctx.strokeStyle = this.palette.strokeReplay;
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.shadowColor = '#ff4d4d';
+    ctx.shadowColor = this.palette.strokeReplay;
     ctx.shadowBlur = 6;
 
     let idx = 0;
@@ -1078,7 +1131,7 @@ export class MirrorTraceApp {
   private initTheme(): void {
     const saved = loadThemeName();
     const theme = findTheme(saved) || themes[0];
-    applyTheme(theme);
+    this.applyPalette(theme);
 
     /* Mark the active dot and bind clicks */
     document.querySelectorAll('.theme-dot').forEach(el => {
@@ -1088,12 +1141,25 @@ export class MirrorTraceApp {
         const name = dot.dataset.theme || 'dark-blue';
         const t = findTheme(name);
         if (!t) return;
-        applyTheme(t);
+        this.applyPalette(t);
         saveThemeName(name);
         document.querySelectorAll('.theme-dot').forEach(d => d.classList.remove('active'));
         dot.classList.add('active');
       });
     });
+  }
+
+  /** Apply a theme to the CSS variables and the canvas palette, then
+      repaint the canvases and the history chart so canvas-drawn colours
+      follow the theme (they cannot read CSS custom properties). */
+  private applyPalette(theme: Theme): void {
+    applyTheme(theme);
+    this.palette = paletteFromTheme(theme);
+    this.strokeRGB = hexToRgb(this.palette.strokeDefault);
+    this.drawRefCanvas();
+    this.clearUserBuffer();
+    this.redrawUserCanvasContent();
+    this.refreshHistoryPanel();
   }
 
   /** Toggle the optional grid overlay on both canvases */
@@ -1116,13 +1182,22 @@ export class MirrorTraceApp {
     el.addEventListener('pointerdown', this.onPointerDown.bind(this));
     el.addEventListener('pointermove', this.onPointerMove.bind(this));
     el.addEventListener('pointerup', this.onPointerUp.bind(this));
+    /* pointercancel (system-interrupted input) ends the stroke the same
+       way so isDrawing can't get stuck. */
+    el.addEventListener('pointercancel', this.onPointerUp.bind(this));
     /* Don't bind pointerleave — lifting the pen outside the canvas
        would truncate the stroke. Let the next pointerdown discard it. */
   }
 
   private onPointerDown(e: PointerEvent): void {
-    /* Cancel any ongoing replay */
-    if (this.replayRafId) { cancelAnimationFrame(this.replayRafId); this.replayRafId = 0; }
+    /* Cancel any ongoing replay and clear its glow style so it doesn't
+       leak into strokes drawn afterwards */
+    if (this.replayRafId) {
+      cancelAnimationFrame(this.replayRafId);
+      this.replayRafId = 0;
+      this.userCtx.shadowBlur = 0;
+      this.userCtx.shadowColor = 'rgba(0, 0, 0, 0)';
+    }
     this.isDrawing = true;
     /* Capture pointer so pointerup fires even outside the canvas */
     this.userCanvas.setPointerCapture(e.pointerId);
@@ -1131,14 +1206,9 @@ export class MirrorTraceApp {
     this.strokeHistory.length = this.historyPointer + 1;
     this.userRawPath = [];
 
-    /* Start global timer on very first stroke */
-    if (this.allRawPaths.length === 0) {
-      this.globalStartTime = performance.now();
-    }
-
     if (this.singleStrokeMode || this.multiLineMode) {
       /* Clear canvas for independent strokes */
-      this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
+      this.clearUserBuffer();
     }
     this.userProcessedPath = [];
     this.clearScoreDisplay();
@@ -1167,18 +1237,38 @@ export class MirrorTraceApp {
       for (const ev of events) {
         const p = clientToCanvas(ev, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
         this.userRawPath.push(p);
-        drawSegment(this.userCtx, this.prevPoint, p, ev.pressure, ev.tiltX, ev.tiltY, this.pressureEnabled);
+        drawSegment(this.userCtx, this.prevPoint, p, ev.pressure, ev.tiltX, ev.tiltY, this.pressureEnabled, this.strokeRGB);
         this.prevPoint = p;
       }
     } else {
       const p = clientToCanvas(e, this.userCanvas, this.virtOffX, this.virtOffY, this.virtScale);
       this.userRawPath.push(p);
-      drawSegment(this.userCtx, this.prevPoint, p, e.pressure, e.tiltX, e.tiltY, this.pressureEnabled);
+      drawSegment(this.userCtx, this.prevPoint, p, e.pressure, e.tiltX, e.tiltY, this.pressureEnabled, this.strokeRGB);
       this.prevPoint = p;
     }
 
-    /* Update live pen-position hotspot on the reference canvas */
-    this.updateLiveHotspot(this.userRawPath[this.userRawPath.length - 1]);
+    /* Update live pen-position hotspot on the reference canvas.
+       Coalesced pen input can fire far more often than the display
+       refreshes, so coalesce to one nearest-point search + repaint
+       per animation frame. */
+    this.scheduleLiveHotspot(this.userRawPath[this.userRawPath.length - 1]);
+  }
+
+  /** rAF handle for the pending hotspot update (0 = none scheduled) */
+  private hotspotRafId = 0;
+  /** Latest pen position awaiting a hotspot update */
+  private pendingHotspotPt: Point | null = null;
+
+  /** Schedule a live-hotspot update on the next animation frame */
+  private scheduleLiveHotspot(p: Point): void {
+    this.pendingHotspotPt = p;
+    if (this.hotspotRafId) return;
+    this.hotspotRafId = requestAnimationFrame(() => {
+      this.hotspotRafId = 0;
+      if (this.pendingHotspotPt) {
+        this.updateLiveHotspot(this.pendingHotspotPt);
+      }
+    });
   }
 
   private onPointerUp(_e: PointerEvent): void {
@@ -1245,19 +1335,19 @@ export class MirrorTraceApp {
     const resampled = resampleToCount(simplified, refSubPath.length);
     const score = computeScores(refSubPath, resampled, elapsedMs);
 
-    /* Record the stroke in history */
+    /* Record the stroke in history — full evaluation is derived from
+       these entries, so undo/redo stay in sync automatically. */
     const state: StrokeState = {
       raw: [...this.userRawPath],
       processed: [...resampled],
       score,
       matchedLineIdx,
+      refSubPath,
+      startTime: this.pointerDownTime,
+      endTime: this.pointerDownTime + elapsedMs,
     };
     this.strokeHistory.push(state);
     this.historyPointer = this.strokeHistory.length - 1;
-
-    /* Store raw path for full evaluation (overview mode) */
-    this.allRawPaths.push([...this.userRawPath]);
-    this.segmentRecords.push({ score, subPathLen: refSubPath.length });
 
     /* Update coverage */
     if (this.multiLineMode && matchedLineIdx >= 0) {
@@ -1328,11 +1418,16 @@ export class MirrorTraceApp {
       /* Reset coverage tracking */
       if (this.multiLineMode) {
         this.multiLineCovered = new Array(this.multiLines.length).fill(false);
+        this.complexLineCoverage = this.complexLineCoverage.map(
+          c => c ? new Array(c.length).fill(false) : null,
+        );
       } else if (!this.singleStrokeMode) {
         this.covered = new Array(this.refPath.length).fill(false);
       }
-      this.globalStartTime = 0;
       this.coveragePct = 0;
+      this.fullEvalReady = false;
+      this.lastFullEval = null;
+      this.evalBadgesEl.style.display = 'none';
       this.updateCoverageUI();
       this.drawRefCanvas();
       this.drawHeatmapGuide();
@@ -1362,7 +1457,7 @@ export class MirrorTraceApp {
     const state = this.strokeHistory[index];
     if (!state) return;
 
-    this.userCtx.clearRect(0, 0, VIRTUAL_W, VIRTUAL_H);
+    this.clearUserBuffer();
 
     /* Single-stroke (non-multi) mode — independent full-curve attempts */
     if (this.singleStrokeMode && !this.multiLineMode) {
@@ -1382,6 +1477,7 @@ export class MirrorTraceApp {
         this.replayRawStroke(this.strokeHistory[i]);
       }
       this.updateCoverageUI();
+      this.syncFullEvalBadges(state);
       this.drawRefCanvas();
       state.score ? this.showScore(state.score) : this.clearScoreDisplay();
       return;
@@ -1404,6 +1500,7 @@ export class MirrorTraceApp {
       (this.covered.filter(v => v).length / this.refPath.length) * 100,
     );
     this.updateCoverageUI();
+    this.syncFullEvalBadges(state);
     this.drawRefCanvas();
     state.score ? this.showScore(state.score) : this.clearScoreDisplay();
   }
@@ -1424,35 +1521,66 @@ export class MirrorTraceApp {
    *
    *   A — Global timer + global spatial score.
    *       All strokes are concatenated into one path (with straight-line
-   *       connectors), simplified, resampled to full refPath length,
-   *       then scored as a single attempt.
+   *       connectors), simplified, resampled, then scored as a single
+   *       attempt.  The reference side is the full refPath in overview
+   *       mode; in multi-line mode it is the concatenation of each
+   *       stroke's matched sub-path (in stroke order), so both paths
+   *       align index-by-index instead of being compared against just
+   *       the first line.
    *
    *   B — Length-weighted average of all segment final scores.
+   *
+   * All inputs are derived from strokeHistory (up to historyPointer),
+   * so the result always reflects the visible strokes after undo/redo.
+   *
+   * @param persist Save the result to localStorage (false when merely
+   *                re-deriving after undo/redo, to avoid duplicates).
    */
-  private triggerFullEvaluation(lastStrokeScore: ScoreResult): void {
+  private triggerFullEvaluation(lastStrokeScore: ScoreResult, persist = true): void {
     this.fullEvalReady = true;
 
-    const globalElapsed = performance.now() - this.globalStartTime;
+    const strokes = this.strokeHistory.slice(0, this.historyPointer + 1);
+    if (strokes.length === 0) return;
+
+    /* Attempt time = first pointerdown → last pointerup.  Read from the
+       stroke records (not wall-clock) so undo/redo and re-derivation
+       don't inflate the elapsed time. */
+    const globalElapsed =
+      strokes[strokes.length - 1].endTime - strokes[0].startTime;
 
     /* ── Algorithm A: Global (concatenated path) ── */
     let globalCombined: Point[] = [];
-    for (let s = 0; s < this.allRawPaths.length; s++) {
-      const stroke = this.allRawPaths[s];
-      if (stroke.length < 2) continue;
+    for (const s of strokes) {
+      if (s.raw.length < 2) continue;
       if (globalCombined.length === 0) {
-        globalCombined.push(...stroke.map(p => ({ x: p.x, y: p.y })));
+        globalCombined.push(...s.raw.map(p => ({ x: p.x, y: p.y })));
       } else {
         /* Connector: straight line from end of previous stroke to start of this one */
-        globalCombined.push(stroke[0]);
-        globalCombined.push(...stroke.map(p => ({ x: p.x, y: p.y })));
+        globalCombined.push(s.raw[0]);
+        globalCombined.push(...s.raw.map(p => ({ x: p.x, y: p.y })));
       }
     }
 
+    /* Reference side — overview: whole curve; multi-line: matched
+       sub-paths concatenated in stroke order (see doc comment). */
+    let refCombined: Point[];
+    if (this.multiLineMode) {
+      refCombined = [];
+      for (const s of strokes) refCombined.push(...s.refSubPath);
+    } else {
+      refCombined = this.refPath;
+    }
+
     let globalScore: ScoreResult;
-    if (globalCombined.length >= 3) {
+    if (globalCombined.length >= 3 && refCombined.length >= 2) {
       const simplified = rdpSimplify(globalCombined, 0.5);
-      const resampled = resampleToCount(simplified, this.refPath.length);
-      globalScore = computeScores(this.refPath, resampled, globalElapsed);
+      /* Resample the reference to uniform arc-length too — the user
+         side is resampled uniformly, so an unevenly-sampled reference
+         (dense lines + a single-segment jump between them) would skew
+         the index-by-index Procrustes RMS even for an exact trace. */
+      const refUniform = resampleToCount(refCombined, refCombined.length);
+      const resampled = resampleToCount(simplified, refUniform.length);
+      globalScore = computeScores(refUniform, resampled, globalElapsed);
     } else {
       globalScore = lastStrokeScore;
     }
@@ -1460,10 +1588,10 @@ export class MirrorTraceApp {
     /* ── Algorithm B: Length-weighted average ── */
     let weightedSum = 0;
     let totalWeight = 0;
-    for (const rec of this.segmentRecords) {
-      if (rec.score) {
-        weightedSum += rec.score.finalScore * rec.subPathLen;
-        totalWeight += rec.subPathLen;
+    for (const s of strokes) {
+      if (s.score) {
+        weightedSum += s.score.finalScore * s.refSubPath.length;
+        totalWeight += s.refSubPath.length;
       }
     }
     const avgScore = totalWeight > 0
@@ -1480,13 +1608,29 @@ export class MirrorTraceApp {
       <span class="eval-badge">
         <span class="eval-badge-label">段均 B</span>
         <span class="eval-badge-score">${avgScore}</span>
-        <span class="eval-badge-sub">${this.segmentRecords.length} 段</span>
+        <span class="eval-badge-sub">${strokes.length} 段</span>
       </span>
     `;
     this.evalBadgesEl.style.display = 'inline-flex';
 
     /* Persist the global evaluation score to localStorage */
-    this.saveToPersistentHistory(globalScore);
+    this.lastFullEval = globalScore;
+    if (persist) this.saveToPersistentHistory(globalScore);
+  }
+
+  /**
+   * After undo/redo restored coverage, refresh (without re-persisting)
+   * or hide the full-evaluation badges so they always match the
+   * currently visible strokes.
+   */
+  private syncFullEvalBadges(state: StrokeState): void {
+    if (this.coveragePct >= 97 && state.score) {
+      this.triggerFullEvaluation(state.score, false);
+    } else {
+      this.fullEvalReady = false;
+      this.lastFullEval = null;
+      this.evalBadgesEl.style.display = 'none';
+    }
   }
 
   /**
@@ -1573,7 +1717,7 @@ export class MirrorTraceApp {
   private renderHistoryChart(entries: HistoryEntry[]): void {
     const parent = this.historyChartEl.parentElement;
     if (!parent) return;
-    renderHistoryChart(this.historyChartEl, parent.clientWidth, this.dpr, entries);
+    renderHistoryChart(this.historyChartEl, parent.clientWidth, this.dpr, entries, this.palette);
   }
 
   /** Show the last N entries as a compact list */
@@ -1583,6 +1727,6 @@ export class MirrorTraceApp {
 
   /** Replay a single raw stroke polyline onto the user canvas */
   private replayRawStroke(state: StrokeState): void {
-    renderReplayRawStroke(this.userCtx, state.raw);
+    renderReplayRawStroke(this.userCtx, state.raw, this.palette.strokeDefault);
   }
 }
